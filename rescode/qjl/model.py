@@ -1,0 +1,414 @@
+"""Qwen/Mixtral MoE conversion with unchanged routing and expert identities."""
+
+import os
+import time
+from types import MethodType
+from typing import Dict
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from .base import fit_shared_base, variance_objective
+from .core import (ExactResidual, PackedResidual, ProjectionBank, pack_residual,
+                   parse_targets, qjl_triton_fused_gate_up)
+from .scale_diagnostics import (add_missing, moe_probe_inputs, record_expert_error,
+                                record_moe_error, record_projection_errors)
+
+
+def projections(expert: nn.Module, family: str):
+    if family == "mixtral":
+        return {"gate": expert.w1.weight, "up": expert.w3.weight,
+                "down": expert.w2.weight}
+    return {"gate": expert.gate_proj.weight, "up": expert.up_proj.weight,
+            "down": expert.down_proj.weight}
+
+
+class SharedBaseCluster(nn.Module):
+    def __init__(self, bases: dict, residuals: dict, expert_bases: dict = None):
+        super().__init__()
+        self.bases = nn.ModuleDict()
+        self.residuals = nn.ModuleDict()
+        for key, weight in bases.items():
+            linear = nn.Linear(weight.shape[1], weight.shape[0], bias=False,
+                               device=weight.device, dtype=weight.dtype)
+            linear.weight = nn.Parameter(weight.detach().contiguous(), requires_grad=False)
+            self.bases[key] = linear
+        for expert_id, parts in residuals.items():
+            self.residuals[str(expert_id)] = nn.ModuleDict(parts)
+        self.expert_bases = nn.ModuleDict()
+        for expert_id, weights in (expert_bases or {}).items():
+            modules = nn.ModuleDict()
+            for key, weight in weights.items():
+                linear = nn.Linear(weight.shape[1], weight.shape[0], bias=False,
+                                   device=weight.device, dtype=weight.dtype)
+                linear.weight = nn.Parameter(weight.detach().contiguous(), requires_grad=False)
+                modules[key] = linear
+            self.expert_bases[str(expert_id)] = modules
+
+    def forward_expert(self, expert_id: int, x: torch.Tensor,
+                       hidden_z: torch.Tensor = None) -> torch.Tensor:
+        residual = self.residuals[str(expert_id)]
+        bases = (self.expert_bases[str(expert_id)]
+                 if str(expert_id) in self.expert_bases else self.bases)
+        gate_module, up_module = residual["gate"], residual["up"]
+        if (hidden_z is not None and isinstance(gate_module, PackedResidual)
+                and isinstance(up_module, PackedResidual)
+                and gate_module.backend == up_module.backend == "triton"
+                and gate_module.d == up_module.d
+                and gate_module.packed.shape == up_module.packed.shape):
+            gate_r, up_r = qjl_triton_fused_gate_up(hidden_z, gate_module,
+                                                    up_module, x.dtype)
+        else:
+            gate_r = (gate_module.forward_projected(hidden_z, x.dtype)
+                      if hidden_z is not None and isinstance(gate_module, PackedResidual)
+                      else gate_module(x))
+            up_r = (up_module.forward_projected(hidden_z, x.dtype)
+                    if hidden_z is not None and isinstance(up_module, PackedResidual)
+                    else up_module(x))
+        gate = bases["gate"](x) + gate_r
+        up = bases["up"](x) + up_r
+        middle = F.silu(gate) * up
+        return bases["down"](middle) + residual["down"](middle)
+
+
+def _qjl_moe_forward(self, hidden_states: torch.Tensor):
+    shape = hidden_states.shape
+    flat = hidden_states.reshape(-1, shape[-1])
+    router_logits = self.gate(flat)
+    weights = F.softmax(router_logits, dim=-1, dtype=torch.float)
+    weights, selected = torch.topk(weights, self.top_k, dim=-1)
+    if self._qjl_family == "mixtral" or self.norm_topk_prob:
+        weights = weights / weights.sum(dim=-1, keepdim=True)
+    weights = weights.to(flat.dtype)
+    output = torch.zeros_like(flat)
+    # Exact expert IDs and original top-k weights, including singleton paths.
+    for expert_id in selected.unique().tolist():
+        token, slot = torch.where(selected == expert_id)
+        if token.numel() == 0:
+            continue
+        x = flat.index_select(0, token)
+        cluster_id = self._qjl_expert_to_cluster[expert_id]
+        if cluster_id is None:
+            y = self.experts[expert_id](x)
+        else:
+            hidden_z = None
+            if self._qjl_hidden_bank is not None:
+                p = self._qjl_hidden_bank.get(x.shape[-1], x.device)
+                hidden_z = x.to(p.dtype) @ p
+            y = self._qjl_clusters[str(cluster_id)].forward_expert(
+                expert_id, x, hidden_z,
+            )
+        output.index_add_(0, token, (y * weights[token, slot, None]).to(output.dtype))
+    if self._qjl_family == "qwen" and hasattr(self, "shared_expert"):
+        shared = self.shared_expert(flat)
+        if getattr(self, "shared_expert_gate", None) is not None:
+            shared = torch.sigmoid(self.shared_expert_gate(flat)) * shared
+        output += shared
+    return output.reshape(shape), router_logits
+
+
+def _block(model, family: str, layer: int):
+    layer_module = model.model.layers[layer]
+    return layer_module.block_sparse_moe if family == "mixtral" else layer_module.mlp
+
+
+def _make_cluster(block, family, members, saliency, samples, heldout, config, bank,
+                  layer_idx=None, cluster_idx=None, shared_cache=None,
+                  diagnostic_records=None, diagnostic_timer=None,
+                  diagnostic_samples=32):
+    bases, residuals, diagnostics = {}, {i: {} for i in members}, {}
+    expert_bases = {i: {} for i in members}
+    scaled = "residual_scale_alpha" in config
+    alpha = config.get("residual_scale_alpha", 1.0)
+    target_set = set(parse_targets(config["targets"]))
+    for proj in ("gate", "up", "down"):
+        weights = {i: projections(block.experts[i], family)[proj].detach()
+                   for i in members}
+        sample = samples.get(proj, {})
+        held = heldout.get(proj, {}) if heldout else None
+        cache_key = (layer_idx, cluster_idx, proj)
+        if shared_cache is not None and cache_key in shared_cache:
+            saved = shared_cache[cache_key]
+            base = saved["base"].to(weights[members[0]].device)
+            report = saved["report"]
+        else:
+            base, report = fit_shared_base(weights, sample, config["base_method"],
+                                           saliency, config["qjl_d"], held,
+                                           delta=config["delta"],
+                                           max_iter=config["cg_iterations"])
+            base = base.to(weights[members[0]].dtype)
+            if shared_cache is not None:
+                shared_cache[cache_key] = {"base": base.detach().cpu(), "report": report}
+        bases[proj] = base
+        diagnostics[proj] = dict(report)
+        diagnostics[proj]["experts"] = {}
+        for i, weight in weights.items():
+            if scaled and alpha != 1.0:
+                # Round the stored base first; the FP32 residual closes the
+                # decomposition against those exact BF16 base weights.
+                individual = (weight.float() - alpha * (weight.float() - base.float()))
+                individual = individual.to(weight.dtype)
+                expert_bases[i][proj] = individual
+            else:
+                individual = base
+            residual = weight.float() - individual.float()
+            if config["residual_mode"] == "qjl" and proj in target_set:
+                bits, norms = pack_residual(residual, bank)
+                module = PackedResidual(bits, norms, weight.shape[1],
+                                        config["qjl_d"], bank, config["backend"])
+            else:
+                module = ExactResidual(residual)
+            residuals[i][proj] = module
+            if scaled and diagnostic_records is not None:
+                started = time.perf_counter()
+                record_projection_errors(diagnostic_records, layer_idx, i, proj,
+                                         weight, individual, residual, module,
+                                         sample, held, diagnostic_samples)
+                diagnostic_timer[0] += time.perf_counter() - started
+                continue
+            norm_w = torch.linalg.vector_norm(weight.float())
+            ratio = float(torch.linalg.vector_norm(residual) / norm_w) if norm_w > 0 else 0.0
+            theory = variance_objective(base.float(), {i: weight},
+                                        {i: sample[i]} if i in sample else {},
+                                        config["qjl_d"])
+            empirical = None
+            if i in sample:
+                x, q = sample[i]
+                x, q = x.to(weight.device), q.to(weight.device)
+                predicted = module(x).float()
+                exact = F.linear(x.float(), residual.float())
+                empirical = float(((predicted - exact).square() * q[:, None]).sum())
+            q_sum = float(sample[i][1].sum()) if i in sample else 0.0
+            diagnostics[proj]["experts"][str(i)] = {
+                "residual_frobenius_ratio": ratio,
+                "theoretical_mse_sum_weighted": theory,
+                "empirical_mse_sum_weighted": empirical,
+                "theoretical_mse_per_weight": theory / q_sum if q_sum else None,
+                "empirical_mse_per_weight": empirical / q_sum if q_sum and empirical is not None else None,
+                "routed_weight_square_sum": q_sum,
+            }
+        print(f"[QJL] projection {proj}: base={config['base_method']} "
+              f"objective {report['objective_before']:.4g} -> "
+              f"{report['objective_after']:.4g}", flush=True)
+    cluster = SharedBaseCluster(bases, residuals,
+                                expert_bases if scaled and alpha != 1.0 else None)
+    expert_error = {}
+    for i in members:
+        if scaled and diagnostic_records is not None:
+            started = time.perf_counter()
+            record_expert_error(diagnostic_records, layer_idx, i,
+                                block.experts[i], cluster, samples, heldout,
+                                diagnostic_samples)
+            diagnostic_timer[0] += time.perf_counter() - started
+        elif i in samples.get("gate", {}):
+            x = samples["gate"][i][0].to(next(block.parameters()).device)
+            original = block.experts[i](x).float()
+            approx = cluster.forward_expert(i, x).float()
+            expert_error[str(i)] = float(
+                torch.linalg.vector_norm(approx - original)
+                / torch.linalg.vector_norm(original).clamp_min(1e-12)
+            )
+    diagnostics["expert_output_relative_error"] = expert_error
+    return cluster, diagnostics
+
+
+def _install_block(block, family: str, groups: list, clusters: nn.ModuleDict):
+    flattened = [i for group in groups for i in group]
+    if sorted(flattened) != list(range(len(block.experts))):
+        raise ValueError("groups must partition original expert IDs")
+    ids = [None] * len(block.experts)
+    singleton_ids = set()
+    for cid, members in enumerate(groups):
+        for i in members:
+            ids[i] = cid if len(members) > 1 else None
+        if len(members) == 1:
+            singleton_ids.add(members[0])
+    # ModuleList replacement releases all original non-singleton weights.
+    block.experts = nn.ModuleList([
+        block.experts[i] if i in singleton_ids else nn.Identity()
+        for i in range(len(ids))
+    ])
+    block.add_module("_qjl_clusters", clusters)
+    block._qjl_expert_to_cluster = ids
+    block._qjl_family = family
+    block._qjl_hidden_bank = None
+    for cluster in clusters.values():
+        for parts in cluster.residuals.values():
+            for key in ("gate", "up"):
+                if isinstance(parts[key], PackedResidual):
+                    block._qjl_hidden_bank = parts[key].bank
+                    break
+            if block._qjl_hidden_bank is not None:
+                break
+        if block._qjl_hidden_bank is not None:
+            break
+    block.forward = MethodType(_qjl_moe_forward, block)
+
+
+@torch.no_grad()
+def convert_model(model, family: str, groups: Dict[int, list], saliency: dict,
+                  samples: dict, heldout: dict, config: dict, probes: dict = None,
+                  shared_cache: dict = None, diagnostic_records: list = None,
+                  diagnostic_timer: list = None, diagnostic_samples: int = 32):
+    """Compress selected layers in place. `groups` uses original expert IDs."""
+    bank = ProjectionBank(config["qjl_d"], config["projection_seed"])
+    model._qjl_projection_bank = bank
+    if diagnostic_records is not None and diagnostic_timer is None:
+        diagnostic_timer = [0.0]
+    reports = {}
+    for layer_idx, layer_groups in sorted(groups.items()):
+        block = _block(model, family, layer_idx)
+        scaled_diagnostics = ("residual_scale_alpha" in config
+                              and diagnostic_records is not None)
+        moe_probes = {}
+        original_moe = {}
+        original_logits = {}
+        if scaled_diagnostics:
+            started = time.perf_counter()
+            for split, source in (("train", samples), ("heldout", heldout)):
+                x = moe_probe_inputs(source.get(layer_idx, {}), diagnostic_samples)
+                if x is not None:
+                    x = x.to(next(block.parameters()).device)
+                    moe_probes[split] = x
+                    y, logits = block(x)
+                    original_moe[split] = y.detach().cpu()
+                    original_logits[split] = logits.detach().cpu()
+            diagnostic_timer[0] += time.perf_counter() - started
+        probe = None if scaled_diagnostics or probes is None else probes.get(layer_idx)
+        original_probe = None
+        if probe is not None:
+            probe_x = probe[0].to(next(block.parameters()).device)
+            with torch.no_grad():
+                original_probe = block(probe_x)[0].float()
+        clusters = nn.ModuleDict()
+        layer_report = {}
+        for cid, members in enumerate(layer_groups):
+            if len(members) == 1:
+                continue
+            print(f"[QJL] layer {layer_idx} cluster {cid}: "
+                  f"packing {len(members)} experts", flush=True)
+            cluster, report = _make_cluster(
+                block, family, members, saliency[layer_idx],
+                samples.get(layer_idx, {}), heldout.get(layer_idx, {}), config, bank,
+                layer_idx, cid, shared_cache, diagnostic_records,
+                diagnostic_timer, diagnostic_samples
+            )
+            clusters[str(cid)] = cluster
+            layer_report[str(cid)] = report
+            for expert_id in members:
+                block.experts[expert_id] = nn.Identity()
+        _install_block(block, family, layer_groups, clusters)
+        if scaled_diagnostics:
+            started = time.perf_counter()
+            for split, x in moe_probes.items():
+                y, logits = block(x)
+                if not torch.equal(logits.cpu(), original_logits[split]):
+                    raise AssertionError(f"router changed at layer {layer_idx}")
+                record_moe_error(diagnostic_records, layer_idx, split,
+                                 y, original_moe[split])
+            for split in ({"train", "heldout"} - set(moe_probes)):
+                add_missing(diagnostic_records, "moe_output_relative_l2_error",
+                            layer_idx, None, "all", split, "no_routed_samples")
+            diagnostic_timer[0] += time.perf_counter() - started
+        if original_probe is not None:
+            with torch.no_grad():
+                approx_probe = block(probe_x)[0].float()
+            layer_report["moe_output_relative_error"] = float(
+                torch.linalg.vector_norm(approx_probe - original_probe)
+                / torch.linalg.vector_norm(original_probe).clamp_min(1e-12)
+            )
+            if (config["residual_mode"] == "exact"
+                    and layer_report["moe_output_relative_error"] > 0.01):
+                raise AssertionError(
+                    f"exact residual identity failed at layer {layer_idx}: "
+                    f"relative error={layer_report['moe_output_relative_error']}"
+                )
+        reports[str(layer_idx)] = layer_report
+        print(f"[QJL] layer {layer_idx}: {len(layer_groups)} groups, "
+              f"{len(clusters)} compressed clusters", flush=True)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    return reports
+
+
+def _tensor_bytes(value):
+    if isinstance(value, torch.Tensor):
+        return value.numel() * value.element_size()
+    if isinstance(value, dict):
+        return sum(_tensor_bytes(v) for v in value.values())
+    if isinstance(value, (list, tuple)):
+        return sum(_tensor_bytes(v) for v in value)
+    return 0
+
+
+def save_qjl_checkpoint(model, family: str, groups: dict, config: dict,
+                        path: str, diagnostics: dict = None):
+    """Save only expert-side tensors; original HF backbone/router is source."""
+    payload = {"format": "rescode-direct-qjl-v1", "family": family,
+               "groups": groups, "config": config, "layers": {},
+               "diagnostics": diagnostics or {}}
+    for layer_idx, layer_groups in groups.items():
+        block = _block(model, family, layer_idx)
+        singletons = {i: {k: v.detach().cpu() for k, v in block.experts[i].state_dict().items()}
+                      for group in layer_groups if len(group) == 1 for i in group}
+        payload["layers"][layer_idx] = {
+            "clusters": {cid: {k: v.detach().cpu() for k, v in cluster.state_dict().items()}
+                         for cid, cluster in block._qjl_clusters.items()},
+            "singletons": singletons,
+        }
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    tmp = f"{path}.tmp{os.getpid()}"
+    torch.save(payload, tmp)
+    os.replace(tmp, path)
+    return {"checkpoint_bytes": os.path.getsize(path),
+            "tensor_bytes": _tensor_bytes(payload),
+            "metadata_and_zip_bytes": os.path.getsize(path) - _tensor_bytes(payload),
+            "projection_gpu_resident_bytes": model._qjl_projection_bank.resident_bytes("cuda"),
+            "projection_cpu_resident_bytes": model._qjl_projection_bank.resident_bytes("cpu")}
+
+
+def load_qjl_checkpoint(model, path: str, backend: str = None):
+    payload = torch.load(path, map_location="cpu", weights_only=False)
+    if payload.get("format") != "rescode-direct-qjl-v1":
+        raise ValueError("not a direct-QJL checkpoint")
+    config = dict(payload["config"])
+    if backend is not None:
+        config["backend"] = backend
+    family = payload["family"]
+    bank = ProjectionBank(config["qjl_d"], config["projection_seed"])
+    model._qjl_projection_bank = bank
+    groups = {int(k): v for k, v in payload["groups"].items()}
+    for layer_idx, layer_groups in groups.items():
+        block = _block(model, family, layer_idx)
+        device = next(block.parameters()).device
+        clusters = nn.ModuleDict()
+        for cid, state in payload["layers"][layer_idx]["clusters"].items():
+            bases = {}
+            residuals = {}
+            expert_bases = {}
+            for proj in ("gate", "up", "down"):
+                bases[proj] = state[f"bases.{proj}.weight"].to(device)
+            for i in layer_groups[int(cid)]:
+                residuals[i] = {}
+                if f"expert_bases.{i}.gate.weight" in state:
+                    expert_bases[i] = {
+                        proj: state[f"expert_bases.{i}.{proj}.weight"].to(device)
+                        for proj in ("gate", "up", "down")
+                    }
+                for proj in ("gate", "up", "down"):
+                    prefix = f"residuals.{i}.{proj}."
+                    if prefix + "packed" in state:
+                        bits = state[prefix + "packed"].to(device)
+                        norms = state[prefix + "norms"].to(device)
+                        residuals[i][proj] = PackedResidual(
+                            bits, norms, bases[proj].shape[1], config["qjl_d"], bank,
+                            config["backend"]
+                        )
+                    else:
+                        residuals[i][proj] = ExactResidual(state[prefix + "weight"].to(device))
+            clusters[str(cid)] = SharedBaseCluster(bases, residuals, expert_bases)
+        for i, singleton_state in payload["layers"][layer_idx]["singletons"].items():
+            block.experts[int(i)].load_state_dict(singleton_state)
+        _install_block(block, family, layer_groups, clusters)
+    return payload
