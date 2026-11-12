@@ -74,8 +74,25 @@ def test_cluster_settings_match_rescode_budget_path():
                for layer in groups)
 
 
+def test_multi_expert_gpu_merge_uses_cpu_coefficients():
+    if not torch.cuda.is_available():
+        return
+    torch.manual_seed(7)
+    members = list(range(16))
+    saliency = torch.linspace(0.4, 1.3, 16, device="cuda")
+    weights = {
+        expert: {projection: torch.randn(128, 128, device="cuda").to(torch.bfloat16)
+                 for projection in ablation.PROJECTIONS}
+        for expert in members
+    }
+    rows, checks = ablation.analyze_group(1, 9, members, weights, saliency, 1e-3,
+                                          verify_packed=True)
+    assert len(rows) == 48 and checks == 3
+
+
 if __name__ == "__main__":
     test_known_shared_base_and_singletons()
     test_residual_identity_and_bf16_storage()
     test_cluster_settings_match_rescode_budget_path()
-    print("3 residual norm ablation tests passed")
+    test_multi_expert_gpu_merge_uses_cpu_coefficients()
+    print("4 residual norm ablation tests passed")

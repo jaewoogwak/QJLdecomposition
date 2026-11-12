@@ -122,7 +122,10 @@ def analyze_group(layer: int, group_id: int, members: list[int],
             raise ValueError("inconsistent projection shapes in a group")
         # Verify the exact ResCode operation and BF16 storage on one matrix.
         if len(members) > 1:
-            coeff = (saliency[members].float() + delta)
+            # The merge helper normalizes these scalar coefficients on CPU.
+            # Reducing them on CUDA can change FP32 low bits and flip BF16
+            # rounding at a few positions even though the merge is correct.
+            coeff = (saliency[members].float() + delta).cpu()
             coeff = coeff / (coeff.sum() + FP32_EPS)
             reference = sum(coeff[k] * weights[e][projection].float()
                             for k, e in enumerate(members)).to(torch.bfloat16)
@@ -341,7 +344,7 @@ def main() -> None:
                 torch.cuda.empty_cache()
     path = args.output_dir / "per_expert.csv"
     with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=FIELDS)
+        writer = csv.DictWriter(f, fieldnames=FIELDS, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     summary = {
