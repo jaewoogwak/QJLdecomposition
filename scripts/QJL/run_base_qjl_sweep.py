@@ -458,10 +458,13 @@ def sweep(args, model_dir: Path) -> None:
 def arguments():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--mode", choices=("sweep", "convert", "eval"), default="sweep")
+    p.add_argument("--residual-mode", choices=("qjl", "fp32"), default="qjl")
     p.add_argument("--model-path", type=Path)
     p.add_argument("--baseline-ckpt", type=Path)
+    p.add_argument("--b-checkpoint", type=Path)
+    p.add_argument("--b-output-dir", type=Path, default=ROOT / "results/base_qjl_sweep")
     p.add_argument("--checkpoint", type=Path)
-    p.add_argument("--output-dir", type=Path, default=ROOT / "results/base_qjl_sweep")
+    p.add_argument("--output-dir", type=Path)
     p.add_argument("--d-factors", default="2,4,8,16")
     p.add_argument("--d-factor", type=int, default=2)
     p.add_argument("--layers", default="all")
@@ -476,13 +479,20 @@ def arguments():
     p.add_argument("--eval-batch-size", type=int, default=16)
     p.add_argument("--gpu-memory-fraction", type=float, default=0.94)
     p.add_argument("--device", default="cuda:0")
+    p.add_argument("--fp32-residual-device", choices=("auto", "cpu", "cuda"),
+                   default="auto")
     p.add_argument("--skip-eval", action="store_true")
     args = p.parse_args()
+    if args.output_dir is None:
+        folder = ("base_qjl_sweep" if args.residual_mode == "qjl"
+                  else "base_qjl_sweep_fp32_residual")
+        args.output_dir = ROOT / "results" / folder
     if args.base_seed == args.residual_seed or args.d_factor < 1:
         p.error("Base seed must differ from residual seed and D factor must be positive")
     if args.max_experts is not None and not 1 <= args.max_experts <= 60:
         p.error("max experts must be within 1..60")
-    if args.mode == "convert" and (args.baseline_ckpt is None or args.checkpoint is None):
+    if (args.mode == "convert" and args.residual_mode == "qjl"
+            and (args.baseline_ckpt is None or args.checkpoint is None)):
         p.error("convert requires --baseline-ckpt and --checkpoint")
     if args.mode == "eval" and args.checkpoint is None:
         p.error("eval requires --checkpoint")
@@ -495,7 +505,10 @@ def main():
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     model_dir = resolve_model(args.model_path)
     try:
-        if args.mode == "sweep":
+        if args.residual_mode == "fp32":
+            from run_base_qjl_fp32_residual import run as run_fp32
+            run_fp32(args, model_dir)
+        elif args.mode == "sweep":
             sweep(args, model_dir)
         elif args.mode == "convert":
             convert(args, model_dir)
