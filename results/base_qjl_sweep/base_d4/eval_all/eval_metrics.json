@@ -1,0 +1,96 @@
+{
+  "checkpoint": "results/base_qjl_sweep/base_d4/compact_qjl_state.pt",
+  "checkpoint_bytes": 9404084433,
+  "checkpoint_config": {
+    "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+    "model_path": "/workspace/.hf_home/hub/models--Qwen--Qwen1.5-MoE-A2.7B-Chat/snapshots/ec052fda178e241c7c443468d2fa1db6618996be",
+    "baseline_checkpoint": "results/base_qjl_sweep/baseline/compact_qjl_state.pt",
+    "baseline_residual_sha256": "7b7fe4c4d55dab9ae78f946dbaa0d8c616bda2a8c11a756456a85d4e9ae3652e",
+    "base_method": "qjl",
+    "residual_method": "qjl",
+    "base_factor": 4,
+    "residual_factor": 2,
+    "base_seed": 1,
+    "residual_seed": 0,
+    "input_dims": {
+      "gate": 2048,
+      "up": 2048,
+      "down": 1408
+    },
+    "backend": "triton",
+    "layers": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "max_experts": null,
+    "weight_count": 12457082880,
+    "diagnostic_samples": 4
+  },
+  "tasks": "arc_easy,arc_challenge",
+  "eval_limit": 0,
+  "backend": "triton",
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        0.36363636363636365,
+        0.35269360269360267
+      ],
+      [
+        "arc_challenge",
+        0.1962457337883959,
+        0.24146757679180889
+      ]
+    ],
+    "avg": 0.2799410487123798,
+    "avg_norm_strict": 0.2970805897427058,
+    "avg_norm": 0.2970805897427058,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 0.1962457337883959,
+      "acc_stderr,none": 0.011606019881416291,
+      "acc_norm,none": 0.24146757679180889,
+      "acc_norm_stderr,none": 0.012506564839739429
+    },
+    "arc_easy": {
+      "acc,none": 0.36363636363636365,
+      "acc_stderr,none": 0.00987084934601176,
+      "acc_norm,none": 0.35269360269360267,
+      "acc_norm_stderr,none": 0.009804420599378656
+    }
+  },
+  "base_packed_gpu_bytes": 6228541440,
+  "base_norm_gpu_bytes": 28016640,
+  "residual_packed_gpu_bytes": 3114270720,
+  "residual_norm_gpu_bytes": 28016640,
+  "base_projection_gpu_bytes": 49414144,
+  "residual_projection_gpu_bytes": 24707072,
+  "gpu_resident_compact_total_bytes": 9472966656,
+  "gpu_process_allocated_bytes": [
+    14345781248
+  ]
+}
