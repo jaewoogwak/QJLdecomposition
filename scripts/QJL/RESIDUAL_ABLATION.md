@@ -46,7 +46,7 @@ Small real-model smoke test (no downstream evaluation or automatic shutdown):
 
 ```bash
 LAYERS=0 MAX_EXPERTS=2 N_SENTENCES=8 GPTQ_CALIBRATION_SAMPLES=4 \
-DIAGNOSTIC_SAMPLES=4 SKIP_EVAL=1 OUTPUT_DIR=results/residual_ablation_smoke \
+DIAGNOSTIC_SAMPLES=4 SKIP_EVAL=1 OUTPUT_DIR=results/residual_ablation_smoke_final \
 AUTO_PUSH_AND_STOP=0 bash scripts/QJL/run_residual_ablation.sh
 ```
 
@@ -94,6 +94,6 @@ checkpoints and the activation cache are excluded from GitHub's regular Git
 push. If the push, verification, credentials, or stop command fails, the
 instance remains running. `AUTO_PUSH_AND_STOP=0` disables this step.
 
-The smoke command uses `OUTPUT_DIR=results/residual_ablation_smoke` and cannot
+The smoke command uses `OUTPUT_DIR=results/residual_ablation_smoke_final` and cannot
 trigger automatic stop. The full run does not start during installation or
 tests; run the full command explicitly when ready.
