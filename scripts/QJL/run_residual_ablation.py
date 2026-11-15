@@ -721,6 +721,8 @@ def evaluate(args, model_dir: Path, case: str, factor: int) -> None:
         low_cpu_mem_usage=True, trust_remote_code=True).eval()
     tokenizer = AutoTokenizer.from_pretrained(str(model_dir), trust_remote_code=True)
     sizes = load_variant(model, folder, config, args.backend, args.fp32_residual_device)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     metas = [json.loads(p.read_text()) for p in sorted(folder.glob("layer_*.meta.json"))]
     results = evaluate_fewshot(model, tokenizer, args.tasks, 0,
                                eval_batch_size=args.eval_batch_size,
@@ -775,7 +777,7 @@ def arguments():
     p.add_argument("--output-dir", type=Path, default=ROOT / "results/residual_ablation")
     p.add_argument("--tasks", default=DEFAULT_TASKS)
     p.add_argument("--eval-limit", type=int, default=0)
-    p.add_argument("--eval-batch-size", type=int, default=16)
+    p.add_argument("--eval-batch-size", type=int, default=2)
     p.add_argument("--skip-eval", action="store_true")
     p.add_argument("--backend", choices=("triton", "reference"), default="triton")
     p.add_argument("--device", default="cuda:0")
