@@ -504,10 +504,20 @@ def compress(args, model_dir: Path, layers: list[int], selected: list[tuple[str,
         bases, residuals, base_hash = base_and_residual(sources)
         lowrank = {}
         membership = {}
+        lowrank_initialization_seconds = {}
+        lowrank_initialization_peak_bytes = {}
         for case, factor in pending:
             if case == "D":
+                sync(device)
+                if device.type == "cuda":
+                    torch.cuda.reset_peak_memory_stats(device)
+                init_start = time.perf_counter()
                 lowrank[factor], membership[factor] = make_groups(
                     args, layer, factor, residuals, groups, stats)
+                sync(device)
+                lowrank_initialization_seconds[factor] = time.perf_counter() - init_start
+                lowrank_initialization_peak_bytes[factor] = (
+                    torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None)
         banks = {factor: {2048: ProjectionBank(2048 * factor, args.qjl_seed),
                           1408: ProjectionBank(1408 * factor, args.qjl_seed)}
                  for case, factor in pending if case == "C"}
@@ -562,14 +572,22 @@ def compress(args, model_dir: Path, layers: list[int], selected: list[tuple[str,
                     reloaded["base_sha256"] != base_hash):
                 raise AssertionError("checkpoint reload mismatch")
             amounts = tensor_bytes(payload)
+            sync(device)
+            encode_and_diagnostics_seconds = time.perf_counter() - start
+            initialization_seconds = (lowrank_initialization_seconds.get(factor, 0.0)
+                                      if case == "D" else 0.0)
             meta = {"layer": layer, "case": case, "factor": factor,
                     "config_digest": configs[(case, factor)]["digest"],
                     "source_sha256": source_hash, "base_sha256": base_hash,
                     "checkpoint_bytes": checkpoint.stat().st_size,
-                    "compression_seconds": time.perf_counter() - start,
+                    "initialization_seconds": initialization_seconds,
+                    "encode_and_diagnostics_seconds": encode_and_diagnostics_seconds,
+                    "compression_seconds": initialization_seconds + encode_and_diagnostics_seconds,
                     **amounts}
             meta["peak_gpu_allocated_bytes"] = (
-                torch.cuda.max_memory_allocated(device) if device.type == "cuda" else None)
+                max(torch.cuda.max_memory_allocated(device),
+                    lowrank_initialization_peak_bytes.get(factor) or 0)
+                if device.type == "cuda" else None)
             meta["metadata_bytes"] = meta["checkpoint_bytes"] - sum(
                 amounts[k] for k in ("base_bytes", "residual_bytes"))
             atomic_json(folder / f"layer_{layer}.meta.json", meta)
@@ -589,7 +607,8 @@ def compress(args, model_dir: Path, layers: list[int], selected: list[tuple[str,
                                             "budget_utilization": state["budget_utilization"]})
                 write_csv(folder / f"layer_{layer}.budgets.csv", budget_rows)
             print(f"[ablation] {tag(case, factor)} layer={layer} "
-                  f"experts={count} seconds={meta['compression_seconds']:.1f}", flush=True)
+                  f"experts={count} seconds={meta['compression_seconds']:.1f} "
+                  f"init={initialization_seconds:.1f}", flush=True)
             del payload, reloaded, expert_states
         del sources, bases, residuals
         if device.type == "cuda":
@@ -640,6 +659,10 @@ def aggregate(args, selected: list[tuple[str, int]]) -> None:
                         "peak_compression_gpu_allocated_bytes": max(
                             (m.get("peak_gpu_allocated_bytes") or 0 for m in metas), default=0),
                         "compression_seconds": sum(m["compression_seconds"] for m in metas),
+                        "lowrank_initialization_seconds": (
+                            sum(m.get("initialization_seconds", 0) for m in metas)
+                            if case == "D" and all("initialization_seconds" in m for m in metas)
+                            else None),
                         "calibration_collection_seconds": (
                             activation.get("calibration_seconds") if case == "E" else 0),
                         "mean_matched_rank": mean_field(

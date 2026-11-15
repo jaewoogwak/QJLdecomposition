@@ -39,6 +39,19 @@ if [[ "${DRY_RUN:-0}" == 1 ]]; then
   echo "Dry run: ${#files[@]} result files would be committed; .pt checkpoints remain local."
   exit 0
 fi
+# Runs started before initialization timing was added produced correct D
+# checkpoints but omit covariance initialization from their D time column.
+shopt -s nullglob
+for meta in "$output_abs"/D_d*/layer_*.meta.json; do
+  if ! grep -q '"initialization_seconds"' "$meta"; then
+    note='Timing note: D compression_seconds excludes ResCode covariance initialization in this run; do not compare those times with A, B, C, or E. Accuracy and stored-byte results are unaffected.'
+    if ! grep -Fq "$note" "$output_abs/REPORT.md"; then
+      printf '\n%s\n' "$note" >> "$output_abs/REPORT.md"
+    fi
+    break
+  fi
+done
+shopt -u nullglob
 git add -f -- "${files[@]}"
 if ! git diff --cached --quiet; then
   author="$(git log -1 --format=%an)"
