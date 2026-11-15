@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import torch
@@ -142,8 +143,16 @@ def load_variant(model, folder: Path, config: dict, backend="triton",
         fp32_device = torch.device("cpu" if fp32_residual_device == "auto" else fp32_residual_device)
     for path in layer_files:
         payload = torch.load(path, map_location="cpu", weights_only=False)
+        meta_path = path.with_name(path.stem + ".meta.json")
+        if not meta_path.is_file():
+            raise FileNotFoundError(f"missing checkpoint source metadata: {meta_path}")
+        meta = json.loads(meta_path.read_text())
         if (payload.get("format") != FORMAT or payload.get("config_digest") != config["digest"]
-                or payload.get("case") != case or payload.get("factor") != factor):
+                or payload.get("case") != case or payload.get("factor") != factor
+                or meta.get("config_digest") != config["digest"]
+                or meta.get("source_sha256") != payload.get("source_sha256")
+                or meta.get("base_sha256") != payload.get("base_sha256")
+                or meta.get("checkpoint_bytes") != path.stat().st_size):
             raise ValueError(f"incompatible layer checkpoint: {path}")
         layer = int(payload["layer"])
         block = model.model.layers[layer].mlp

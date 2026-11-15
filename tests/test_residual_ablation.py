@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import tempfile
+import json
 
 import torch
 import torch.nn as nn
@@ -206,8 +207,12 @@ def test_loader_preserves_routing_and_shared_expert():
     with tempfile.TemporaryDirectory() as folder:
         path = Path(folder) / "layer_0.pt"
         torch.save({"format": FORMAT, "case": "A", "factor": 0, "layer": 0,
-                    "config_digest": "test", "experts": {i: state for i in range(60)},
+                    "config_digest": "test", "source_sha256": "source",
+                    "base_sha256": "base", "experts": {i: state for i in range(60)},
                     "groups": {}}, path)
+        (Path(folder) / "layer_0.meta.json").write_text(json.dumps({
+            "config_digest": "test", "source_sha256": "source",
+            "base_sha256": "base", "checkpoint_bytes": path.stat().st_size}))
         config = {"case": "A", "factor": 0, "qjl_seed": 0,
                   "layers": [0], "digest": "test"}
         load_variant(model, Path(folder), config, backend="reference")
