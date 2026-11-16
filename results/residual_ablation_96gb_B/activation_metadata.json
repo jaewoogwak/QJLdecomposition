@@ -5,6 +5,6 @@
   "collection_seconds": 53.92662634141743,
   "diagnostic_collection_seconds": 53.92662744410336,
   "diagnostic_dataset": "rescode/data/wikipedia-calib.jsonl",
-  "reused": false,
+  "reused": true,
   "sample_hash": "23a8d72dc1fba2a59972358ce9ec7e269cba7fdb365b803b3cd230dc9010f198"
 }

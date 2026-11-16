@@ -1,0 +1,4 @@
+case,factor,layer,expert,projection,stage,backend,batch_size,latency_ms,cuda_event_ms,tokens_per_second,theoretical_ops_per_token,hardware,residual_device
+D,2,9,0,gate,full_projection,dense/factorized,4,0.24723447859287262,0.2359520047903061,16178.973186773448,15500672,NVIDIA RTX PRO 6000 Blackwell Server Edition,cuda:0
+D,2,9,0,up,full_projection,dense/factorized,4,0.25060586631298065,0.2386239990592003,15961.318299725739,15500672,NVIDIA RTX PRO 6000 Blackwell Server Edition,cuda:0
+D,2,9,0,down,full_projection,dense/factorized,4,0.25698915123939514,0.24505600333213806,15564.859375226499,15500672,NVIDIA RTX PRO 6000 Blackwell Server Edition,cuda:0

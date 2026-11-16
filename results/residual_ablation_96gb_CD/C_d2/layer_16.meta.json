@@ -1,0 +1,17 @@
+{
+  "base_bytes": 329444976,
+  "base_sha256": "fdd9077e3d030728426c4df0dbf7d968c19f994a49924d1986f003595518a504",
+  "case": "C",
+  "checkpoint_bytes": 460800171,
+  "compression_seconds": 4.739724555052817,
+  "config_digest": "9ce9a99819f0c0ba8e5aff8b5e1796983000018ec4f401087ece917fd5daea6c",
+  "encode_and_diagnostics_seconds": 4.739724555052817,
+  "factor": 2,
+  "initialization_seconds": 0.0,
+  "layer": 16,
+  "metadata_bytes": 426555,
+  "peak_gpu_allocated_bytes": 3932869120,
+  "residual_bytes": 130928640,
+  "shared_factor_bytes": 0,
+  "source_sha256": "376bf6426fafca51c9d095dddb81bf06c0bc1af4f94b13f95aa2b80d6c4a3f45"
+}

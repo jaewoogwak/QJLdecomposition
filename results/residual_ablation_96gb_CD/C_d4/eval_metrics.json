@@ -1,0 +1,60 @@
+{
+  "base_bytes": 7905458160,
+  "case": "C",
+  "checkpoint_bytes": 14172239684,
+  "config_digest": "9ddad69848c89a237a9a8f36018f6e9fa8ec7ce5766ecf5bf5800f5a58c6ca03",
+  "eval_limit": 0,
+  "expert_gpu_resident_bytes": 14162016240,
+  "factor": 4,
+  "fp32_residual_device": "cpu",
+  "gpu_allocated_bytes": 19194115072,
+  "gpu_resident_compact_total_bytes": 14211430384,
+  "projection_bank_gpu_bytes": 49414144,
+  "residual_bytes": 6256558080,
+  "shared_factor_bytes": 0,
+  "source_sha256s": [
+    "bb5c172bf20d25eb940263dcf0d3edea141da72624effd2134bcd712079befa5",
+    "e8de02d99f9618545be1226eb374e045f7a76458f95d73bf1fb4248160671be8",
+    "67267ba76a019d2e9fe54094b15ad71f449a0f5ae0447cc18d120901f45b312a",
+    "5e9bbf3975637e1a2b20728360746822cb2f7aa6594a9ed0b2fab0deace62c6d",
+    "accb9351704c919ab8a0750325ef73a43ce6499eeb0b701486487939eea7a169",
+    "ee3b8d1de72811498cfa4f6b97cc5a026c9dab81ae507b55359d5e682c402b49",
+    "d1f02f6ee87713ce170b6916376f4bf1bb263f03f2b9b0cb727d2e04922c18b2",
+    "84ed6f3dd4e9c82ebbc92272b6b42c33437af1bdd85b74231fbc1e22f8f28e12",
+    "376bf6426fafca51c9d095dddb81bf06c0bc1af4f94b13f95aa2b80d6c4a3f45",
+    "03cc03498f5aa28af9848c21ba79e3a16e7a00b5a01cb980744b0fab272614b5",
+    "627ed58b38904b0c376dff29eb3a15cf9416d6369e722597ec00a803f97d2e8c",
+    "08e2861a0fc429219c07e85d37f4d914bce404357f2938d2fc234f873bfcdf63",
+    "504fb537adaf6d99d949f0a51a501e4ae473740e5ae852d834618202786a5f7d",
+    "62f04137997a0cd0ddae2a9404a26969bc3d3b5bf739b77df86850ac8a433eda",
+    "cdfe23af65cd3cdc1169f490d59267cafc6829a5cac3da1807523012fd5d02e3",
+    "92184b12343dc3fc812d77f97b9ff2e86b943ffdd4d8561febcda33cffa8d244",
+    "72f0d0af15093588948ac761b38daf658e8f51411a04e1b69a4b956d16a67afc",
+    "6ad9ca70410038709cd16894e127737e5ae63fe1d40b6fa79febfd4087aa8eb4",
+    "86ff6600d0ba2d0edb180ad54cbe3e49853803df3da3c96538f9801f31829bd1",
+    "2d9edc6ca5dee09f3d95e9bf6ba95dab71e945c3093a5dda97fd300b11da0fa4",
+    "fd745f74afa345d25da5d53afcd6d0114075572d1212591961b43d5e05aaf519",
+    "a9834cafe8b9a2b111b57c676a8c6f591993245b2f031850ea5ee60106ead98a",
+    "5d54b13fc7a384aa0e2c82e82bb310a3fe98e5a504173e3194cab2ceb67ebc2d",
+    "0b249788dd986e9ef0ed3b7ec123fb2bf183a6f39686956da575fdc25fe0194b"
+  ],
+  "task_summary": {
+    "avg": 0.526979119982533,
+    "avg_norm": 0.5286590305788258,
+    "avg_norm_strict": 0.5286590305788258,
+    "avg_norm_uses_fallback": [],
+    "tasks": [
+      [
+        "arc_easy",
+        0.6725589225589226,
+        0.6452020202020202
+      ],
+      [
+        "arc_challenge",
+        0.38139931740614336,
+        0.4121160409556314
+      ]
+    ]
+  },
+  "tasks": "arc_easy,arc_challenge"
+}
