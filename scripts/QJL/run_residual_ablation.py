@@ -698,8 +698,10 @@ def aggregate(args, selected: list[tuple[str, int]]) -> None:
                          f"mean weight output error {row['mean_weight_output_error']}; "
                          f"task accuracy {row['accuracy_mean']}.")
     lines += ["", "Case D uses ResCode covariance initialization only, on the fixed mantissa residual.",
-              "Case E inference dequantizes packed INT2 before GEMM; its latency is not an optimized INT2 kernel.",
-              "No downstream accuracy is reported until evaluation completes.", ""]
+              "Case E inference dequantizes packed INT2 before GEMM; its latency is not an optimized INT2 kernel."]
+    if any(row["accuracy_mean"] is None for row in summary):
+        lines.append("No downstream accuracy is reported until evaluation completes.")
+    lines.append("")
     (args.output_dir / "REPORT.md").write_text("\n".join(lines))
 
 
