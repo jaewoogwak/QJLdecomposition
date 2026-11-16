@@ -1,0 +1,91 @@
+|                 Tasks                  |Version|Filter|n-shot| Metric |Value |   |Stderr|
+|----------------------------------------|-------|------|-----:|--------|-----:|---|-----:|
+|mmlu                                    |N/A    |none  |     0|acc     |0.5996|±  |0.0039|
+|mmlu_humanities                         |N/A    |none  |     0|acc     |0.5390|±  |0.0068|
+|mmlu_formal_logic                       |      0|none  |     0|acc     |0.3651|±  |0.0431|
+|mmlu_high_school_european_history       |      0|none  |     0|acc     |0.7152|±  |0.0352|
+|mmlu_high_school_us_history             |      0|none  |     0|acc     |0.7500|±  |0.0304|
+|mmlu_high_school_world_history          |      0|none  |     0|acc     |0.7764|±  |0.0271|
+|mmlu_international_law                  |      0|none  |     0|acc     |0.7355|±  |0.0403|
+|mmlu_jurisprudence                      |      0|none  |     0|acc     |0.7315|±  |0.0428|
+|mmlu_logical_fallacies                  |      0|none  |     0|acc     |0.6871|±  |0.0364|
+|mmlu_moral_disputes                     |      0|none  |     0|acc     |0.6445|±  |0.0258|
+|mmlu_moral_scenarios                    |      0|none  |     0|acc     |0.2860|±  |0.0151|
+|mmlu_philosophy                         |      0|none  |     0|acc     |0.6752|±  |0.0266|
+|mmlu_prehistory                         |      0|none  |     0|acc     |0.6759|±  |0.0260|
+|mmlu_professional_law                   |      0|none  |     0|acc     |0.4622|±  |0.0127|
+|mmlu_world_religions                    |      0|none  |     0|acc     |0.8070|±  |0.0303|
+|mmlu_other                              |N/A    |none  |     0|acc     |0.6756|±  |0.0081|
+|mmlu_business_ethics                    |      0|none  |     0|acc     |0.6700|±  |0.0473|
+|mmlu_clinical_knowledge                 |      0|none  |     0|acc     |0.6491|±  |0.0294|
+|mmlu_college_medicine                   |      0|none  |     0|acc     |0.5838|±  |0.0376|
+|mmlu_global_facts                       |      0|none  |     0|acc     |0.3700|±  |0.0485|
+|mmlu_human_aging                        |      0|none  |     0|acc     |0.6457|±  |0.0321|
+|mmlu_management                         |      0|none  |     0|acc     |0.8058|±  |0.0392|
+|mmlu_marketing                          |      0|none  |     0|acc     |0.8632|±  |0.0225|
+|mmlu_medical_genetics                   |      0|none  |     0|acc     |0.6600|±  |0.0476|
+|mmlu_miscellaneous                      |      0|none  |     0|acc     |0.8110|±  |0.0140|
+|mmlu_nutrition                          |      0|none  |     0|acc     |0.6634|±  |0.0271|
+|mmlu_professional_accounting            |      0|none  |     0|acc     |0.4752|±  |0.0298|
+|mmlu_professional_medicine              |      0|none  |     0|acc     |0.6397|±  |0.0292|
+|mmlu_virology                           |      0|none  |     0|acc     |0.4880|±  |0.0389|
+|mmlu_social_sciences                    |N/A    |none  |     0|acc     |0.7013|±  |0.0080|
+|mmlu_econometrics                       |      0|none  |     0|acc     |0.3509|±  |0.0449|
+|mmlu_high_school_geography              |      0|none  |     0|acc     |0.8131|±  |0.0278|
+|mmlu_high_school_government_and_politics|      0|none  |     0|acc     |0.8031|±  |0.0287|
+|mmlu_high_school_macroeconomics         |      0|none  |     0|acc     |0.6128|±  |0.0247|
+|mmlu_high_school_microeconomics         |      0|none  |     0|acc     |0.6933|±  |0.0300|
+|mmlu_high_school_psychology             |      0|none  |     0|acc     |0.7963|±  |0.0173|
+|mmlu_human_sexuality                    |      0|none  |     0|acc     |0.7099|±  |0.0398|
+|mmlu_professional_psychology            |      0|none  |     0|acc     |0.6095|±  |0.0197|
+|mmlu_public_relations                   |      0|none  |     0|acc     |0.6182|±  |0.0465|
+|mmlu_security_studies                   |      0|none  |     0|acc     |0.7388|±  |0.0281|
+|mmlu_sociology                          |      0|none  |     0|acc     |0.8259|±  |0.0268|
+|mmlu_us_foreign_policy                  |      0|none  |     0|acc     |0.8300|±  |0.0378|
+|mmlu_stem                               |N/A    |none  |     0|acc     |0.5160|±  |0.0087|
+|mmlu_abstract_algebra                   |      0|none  |     0|acc     |0.3900|±  |0.0490|
+|mmlu_anatomy                            |      0|none  |     0|acc     |0.5630|±  |0.0428|
+|mmlu_astronomy                          |      0|none  |     0|acc     |0.6382|±  |0.0391|
+|mmlu_college_biology                    |      0|none  |     0|acc     |0.6111|±  |0.0408|
+|mmlu_college_chemistry                  |      0|none  |     0|acc     |0.4500|±  |0.0500|
+|mmlu_college_computer_science           |      0|none  |     0|acc     |0.4100|±  |0.0494|
+|mmlu_college_mathematics                |      0|none  |     0|acc     |0.3300|±  |0.0473|
+|mmlu_college_physics                    |      0|none  |     0|acc     |0.3824|±  |0.0484|
+|mmlu_computer_security                  |      0|none  |     0|acc     |0.7000|±  |0.0461|
+|mmlu_conceptual_physics                 |      0|none  |     0|acc     |0.5447|±  |0.0326|
+|mmlu_electrical_engineering             |      0|none  |     0|acc     |0.6276|±  |0.0403|
+|mmlu_elementary_mathematics             |      0|none  |     0|acc     |0.4339|±  |0.0255|
+|mmlu_high_school_biology                |      0|none  |     0|acc     |0.7258|±  |0.0254|
+|mmlu_high_school_chemistry              |      0|none  |     0|acc     |0.5271|±  |0.0351|
+|mmlu_high_school_computer_science       |      0|none  |     0|acc     |0.6500|±  |0.0479|
+|mmlu_high_school_mathematics            |      0|none  |     0|acc     |0.3815|±  |0.0296|
+|mmlu_high_school_physics                |      0|none  |     0|acc     |0.3709|±  |0.0394|
+|mmlu_high_school_statistics             |      0|none  |     0|acc     |0.5278|±  |0.0340|
+|mmlu_machine_learning                   |      0|none  |     0|acc     |0.4107|±  |0.0467|
+|arc_challenge                           |      1|none  |     0|acc     |0.3933|±  |0.0143|
+|                                        |       |none  |     0|acc_norm|0.4241|±  |0.0144|
+|arc_easy                                |      1|none  |     0|acc     |0.7012|±  |0.0094|
+|                                        |       |none  |     0|acc_norm|0.6822|±  |0.0096|
+
+|       Groups       |Version|Filter|n-shot|Metric|Value |   |Stderr|
+|--------------------|-------|------|-----:|------|-----:|---|-----:|
+|mmlu                |N/A    |none  |     0|acc   |0.5996|±  |0.0039|
+|mmlu_humanities     |N/A    |none  |     0|acc   |0.5390|±  |0.0068|
+|mmlu_other          |N/A    |none  |     0|acc   |0.6756|±  |0.0081|
+|mmlu_social_sciences|N/A    |none  |     0|acc   |0.7013|±  |0.0080|
+|mmlu_stem           |N/A    |none  |     0|acc   |0.5160|±  |0.0087|
+
+
+========================================================================
+Residual ablation A
+========================================================================
+|       Task        |  acc   | acc_norm |
+|-------------------|-------:|---------:|
+| arc_easy          | 0.7012 | 0.6822 |
+| arc_challenge     | 0.3933 | 0.4241 |
+| mmlu              | 0.5996 |     -    |
+
+avg      = 0.5647      (mean of acc over all tasks)
+avg_norm = 0.5686      (mean of acc_norm; fallback to acc for ['mmlu'])
+avg_norm_strict = 0.5532  (mean of acc_norm over only tasks that report acc_norm: ['arc_easy', 'arc_challenge'])
+========================================================================

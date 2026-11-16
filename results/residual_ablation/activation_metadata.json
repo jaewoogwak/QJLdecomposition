@@ -1,0 +1,10 @@
+{
+  "cache": "results/residual_ablation/routed_samples.pt",
+  "calibration_dataset": "rescode/data/dclm-calib.jsonl",
+  "calibration_seconds": 58.341429446823895,
+  "collection_seconds": 114.05455318791792,
+  "diagnostic_collection_seconds": 55.713122200686485,
+  "diagnostic_dataset": "rescode/data/wikipedia-calib.jsonl",
+  "reused": true,
+  "sample_hash": "656f356edb376b79b664b4bd1a4b27c7768d81c39f9248f03563a8cc13726f2d"
+}

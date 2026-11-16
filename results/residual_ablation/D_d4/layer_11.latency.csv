@@ -1,0 +1,4 @@
+case,factor,layer,expert,projection,stage,backend,batch_size,latency_ms,cuda_event_ms,tokens_per_second,theoretical_ops_per_token,hardware,residual_device
+D,4,11,0,gate,full_projection,dense/factorized,4,0.363554572686553,0.3498240113258362,11002.474732861338,7211985,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+D,4,11,0,up,full_projection,dense/factorized,4,0.35151513293385506,0.33766399323940277,11379.310946344616,7211985,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+D,4,11,0,down,full_projection,dense/factorized,4,0.3655543550848961,0.35152000188827515,10942.285174173463,7211985,NVIDIA RTX PRO 5000 Blackwell,cuda:0

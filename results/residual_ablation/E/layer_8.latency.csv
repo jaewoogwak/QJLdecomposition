@@ -1,0 +1,10 @@
+case,factor,layer,expert,projection,stage,backend,batch_size,latency_ms,cuda_event_ms,tokens_per_second,theoretical_ops_per_token,hardware,residual_device
+E,0,8,0,gate,full_projection,dequantize+GEMM,4,0.5130546633154154,0.49846401810646057,7796.440196355613,11534336,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+E,0,8,0,gate,residual_decode,dequantize+GEMM,4,0.27921004220843315,0.2651520073413849,14326.132285077194,,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+E,0,8,0,gate,residual_fp32_gemm,dequantize+GEMM,4,0.0713597983121872,0.060047999024391174,56053.970086920206,,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+E,0,8,0,up,full_projection,dequantize+GEMM,4,0.5029949825257063,0.4878239929676056,7952.365607932429,11534336,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+E,0,8,0,up,residual_decode,dequantize+GEMM,4,0.27573504485189915,0.26124800741672516,14506.67978076001,,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+E,0,8,0,up,residual_fp32_gemm,dequantize+GEMM,4,0.07140985690057278,0.060256000608205795,56014.67603512193,,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+E,0,8,0,down,full_projection,dequantize+GEMM,4,0.502859940752387,0.48814399540424347,7954.501195730836,11534336,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+E,0,8,0,down,residual_decode,dequantize+GEMM,4,0.2705694641917944,0.2566720098257065,14783.634258020269,,NVIDIA RTX PRO 5000 Blackwell,cuda:0
+E,0,8,0,down,residual_fp32_gemm,dequantize+GEMM,4,0.07130973972380161,0.06015999987721443,56093.31930663167,,NVIDIA RTX PRO 5000 Blackwell,cuda:0
