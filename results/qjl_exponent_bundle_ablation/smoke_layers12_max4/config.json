@@ -1,0 +1,66 @@
+{
+  "analysis_version": 2,
+  "case_names": {
+    "A": "Exponent Base only",
+    "B": "Original Individual QJL",
+    "C": "Exponent Individual QJL",
+    "D": "Exponent Majority QJL"
+  },
+  "device": "cuda",
+  "groups_path": "/home/jaewoo/QJLdecomposition/results/qjl_direct/shared/qwen/groups-0c0fb7aea36af7a8.pt",
+  "groups_sha256": "73d12762e583ed38a9f3f8b5d658345774185149ad003d0ff120e69106f37015",
+  "layers": [
+    12
+  ],
+  "max_experts": 4,
+  "model_index_sha256": "ece1b223efe32f4349d0dfa2a522249ac10bcb89369ed25b222c35175cd90b53",
+  "model_path": "/workspace/.hf_home/hub/models--Qwen--Qwen1.5-MoE-A2.7B-Chat/snapshots/ec052fda178e241c7c443468d2fa1db6618996be",
+  "model_shards": {
+    "model-00001-of-00008.safetensors": [
+      3999614664,
+      1795055168251797631
+    ],
+    "model-00002-of-00008.safetensors": [
+      3999385424,
+      1795055142121866325
+    ],
+    "model-00003-of-00008.safetensors": [
+      3988628968,
+      1795055159229821335
+    ],
+    "model-00004-of-00008.safetensors": [
+      3999386088,
+      1795055168545796859
+    ],
+    "model-00005-of-00008.safetensors": [
+      3988629648,
+      1795055172166787350
+    ],
+    "model-00006-of-00008.safetensors": [
+      3999386104,
+      1795055170845790819
+    ],
+    "model-00007-of-00008.safetensors": [
+      3988629648,
+      1795055197400721147
+    ],
+    "model-00008-of-00008.safetensors": [
+      668484400,
+      1795055175321779066
+    ]
+  },
+  "projection_dtype": "FP16 Gaussian",
+  "projection_seed": 0,
+  "projections": [
+    "gate",
+    "up",
+    "down"
+  ],
+  "qjl_d": 2048,
+  "random_seed": 42,
+  "ranks": [
+    128,
+    512
+  ],
+  "svd": "torch.linalg.svdvals FP32; TF32 off"
+}
