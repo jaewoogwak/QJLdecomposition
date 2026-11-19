@@ -1,0 +1,3 @@
+# Exact bundled-QJL residual singular values
+
+Each row in `singular_values.csv` is one non-singleton expert/projection. `sv_1` through `sv_1408` are descending FP32 singular values of `R_i = FP32(W_i) - FP32(B_tilde_gi)`, where `B_tilde_gi` is built from the checkpoint's packed majority signs, FP32 expert row norms, and runtime FP16 Gaussian projection. The low-rank checkpoint factors are not used to compute this residual. `layers/layer_XX.npz` contains the same full values and identity metadata. Heatmaps use a shared log10 color scale across Gate/Up/Down; rows are sorted by layer, group, expert. `heatmap_row_index.csv` maps each image row to an expert. Singular index is descending.
