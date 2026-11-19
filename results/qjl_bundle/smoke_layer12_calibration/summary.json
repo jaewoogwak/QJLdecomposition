@@ -1,0 +1,253 @@
+{
+  "configuration": {
+    "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+    "layers": [
+      12
+    ],
+    "qjl_d": 256,
+    "rank": 8,
+    "bundle_mode": "majority",
+    "residual_mode": "lowrank",
+    "backend": "triton",
+    "projection_seed": 0,
+    "svd_seed": 42,
+    "svd_oversample": 8,
+    "svd_niter": 2,
+    "grouping_path": "results/qjl_direct/shared/qwen/groups-0c0fb7aea36af7a8.pt",
+    "grouping_summary": {
+      "budget_params": 6228541440,
+      "compressed_params": 6226076160,
+      "residual_params": 32137728,
+      "original_params": 12457082880,
+      "kept_ratio": 0.49980209812973486,
+      "compression_ratio": 0.5001979018702651,
+      "extra_merges": 4
+    },
+    "svd_method": "torch.svd_lowrank"
+  },
+  "summary": {
+    "gate": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 0.5711682811379433,
+        "max": 0.6401339769363403,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5005464553833008,
+        "max": 0.5005464553833008,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.4288317197933793,
+        "max": 0.4326976537704468,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 3.7359364852309227,
+        "max": 3.7383646965026855,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 0.09020126424729824,
+        "max": 0.09177130460739136,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.9538336414843798,
+        "max": 0.9545208811759949,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 3.5634621158242226,
+        "max": 3.567101240158081,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": 3.273563079535961,
+        "max": 7.208221435546875,
+        "count": 32
+      },
+      "runtime_rounding_relative_error": {
+        "mean": 0.00018723324365055305,
+        "max": 0.00021139960153959692,
+        "count": 32
+      },
+      "expert_output_relative_error": {
+        "mean": 47.88351637125015,
+        "max": 213.0626678466797,
+        "count": 32
+      }
+    },
+    "up": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 0.5700628813356161,
+        "max": 0.6391046643257141,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5000286102294922,
+        "max": 0.5000286102294922,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.42993711959570646,
+        "max": 0.43485885858535767,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 3.736562728881836,
+        "max": 3.738542079925537,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 0.07159038819372654,
+        "max": 0.07279127836227417,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.9635400660336018,
+        "max": 0.9643247127532959,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 3.6003286093473434,
+        "max": 3.6044740676879883,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": 3.6724661365151405,
+        "max": 9.22591495513916,
+        "count": 32
+      },
+      "runtime_rounding_relative_error": {
+        "mean": 0.00020299506104493048,
+        "max": 0.00021892682707402855,
+        "count": 32
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "down": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 0.5699102878570557,
+        "max": 0.6394424438476562,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.4999687969684601,
+        "max": 0.4999687969684601,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.43008971214294434,
+        "max": 0.43372344970703125,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 3.161448933184147,
+        "max": 3.164039134979248,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 0.07297461852431297,
+        "max": 0.07419556379318237,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.9628215190023184,
+        "max": 0.9636203050613403,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 3.043910726904869,
+        "max": 3.047884464263916,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": 2.994657553732395,
+        "max": 3.199443817138672,
+        "count": 32
+      },
+      "runtime_rounding_relative_error": {
+        "mean": 0.00019944718724218546,
+        "max": 0.00023266499920282513,
+        "count": 32
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "all": {
+      "count": 96,
+      "sign_agreement": {
+        "mean": 0.5703804834435383,
+        "max": 0.6401339769363403,
+        "count": 96
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5001812875270844,
+        "max": 0.5005464553833008,
+        "count": 96
+      },
+      "majority_flip_rate": {
+        "mean": 0.42961951717734337,
+        "max": 0.43485885858535767,
+        "count": 96
+      },
+      "residual_frobenius_ratio": {
+        "mean": 3.544649382432302,
+        "max": 3.738542079925537,
+        "count": 96
+      },
+      "svd_energy_retention": {
+        "mean": 0.07825542365511258,
+        "max": 0.09177130460739136,
+        "count": 96
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.9600650755067667,
+        "max": 0.9643247127532959,
+        "count": 96
+      },
+      "weight_relative_error": {
+        "mean": 3.402567150692145,
+        "max": 3.6044740676879883,
+        "count": 96
+      },
+      "activation_output_relative_error": {
+        "mean": 3.313562256594499,
+        "max": 9.22591495513916,
+        "count": 96
+      },
+      "runtime_rounding_relative_error": {
+        "mean": 0.00019655849731255634,
+        "max": 0.00023266499920282513,
+        "count": 96
+      },
+      "expert_output_relative_error": {
+        "mean": 47.88351637125015,
+        "max": 213.0626678466797,
+        "count": 32
+      }
+    }
+  },
+  "original_routed_bf16_bytes": 1038090240,
+  "checkpoint_bytes": 490640045,
+  "effective_bits_per_routed_weight": 7.562194901283341,
+  "routed_bf16_compression_ratio": 0.5273628186697912,
+  "moe_output_relative_errors": [
+    {
+      "layer": 12,
+      "group": null,
+      "moe_output_relative_error": 16.13667869567871
+    }
+  ]
+}

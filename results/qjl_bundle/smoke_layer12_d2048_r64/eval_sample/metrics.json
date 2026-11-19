@@ -1,0 +1,85 @@
+{
+  "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+  "source": "/workspace/.hf_home/hub/models--Qwen--Qwen1.5-MoE-A2.7B-Chat/snapshots/ec052fda178e241c7c443468d2fa1db6618996be",
+  "mode": "eval",
+  "model_load_seconds": 32.681023336946964,
+  "checkpoint": "results/qjl_bundle/smoke_layer12_d2048_r64/bundle_qjl_state.pt",
+  "checkpoint_config": {
+    "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+    "layers": [
+      12
+    ],
+    "qjl_d": 2048,
+    "rank": 64,
+    "bundle_mode": "majority",
+    "residual_mode": "lowrank",
+    "backend": "triton",
+    "projection_seed": 0,
+    "svd_seed": 42,
+    "svd_oversample": 8,
+    "svd_niter": 2,
+    "grouping_path": "results/qjl_direct/shared/qwen/groups-0c0fb7aea36af7a8.pt",
+    "grouping_summary": {
+      "budget_params": 6228541440,
+      "compressed_params": 6226076160,
+      "residual_params": 32137728,
+      "original_params": 12457082880,
+      "kept_ratio": 0.49980209812973486,
+      "compression_ratio": 0.5001979018702651,
+      "extra_merges": 4
+    },
+    "svd_method": "torch.svd_lowrank"
+  },
+  "checkpoint_bytes": 528888877,
+  "shared_packed_sign_bytes": 1245184,
+  "expert_row_norm_bytes": 622592,
+  "lowrank_factor_bytes": 42467328,
+  "singleton_bf16_bytes": 484442112,
+  "tensor_bytes": 528777216,
+  "metadata_and_zip_bytes": 111661,
+  "gpu_shared_packed_sign_bytes": 1245184,
+  "gpu_expert_row_norm_bytes": 622592,
+  "gpu_lowrank_factor_bytes": 42467328,
+  "gpu_singleton_bytes": 484442112,
+  "gpu_projection_matrix_bytes": 0,
+  "inference_forward_median_ms": 254.14241407997906,
+  "gpu_peak_allocated_bytes": [
+    29110026240
+  ],
+  "gpu_process_allocated_bytes": [
+    28567519744
+  ],
+  "eval_seconds": 11.649244207888842,
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        1.0,
+        1.0
+      ],
+      [
+        "arc_challenge",
+        0.5,
+        0.0
+      ]
+    ],
+    "avg": 0.75,
+    "avg_norm_strict": 0.5,
+    "avg_norm": 0.5,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 0.5,
+      "acc_stderr,none": 0.5,
+      "acc_norm,none": 0.0,
+      "acc_norm_stderr,none": 0.0
+    },
+    "arc_easy": {
+      "acc,none": 1.0,
+      "acc_stderr,none": 0.0,
+      "acc_norm,none": 1.0,
+      "acc_norm_stderr,none": 0.0
+    }
+  }
+}

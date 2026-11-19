@@ -1,0 +1,248 @@
+{
+  "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+  "source": "/workspace/.hf_home/hub/models--Qwen--Qwen1.5-MoE-A2.7B-Chat/snapshots/ec052fda178e241c7c443468d2fa1db6618996be",
+  "mode": "compress",
+  "model_load_seconds": 31.656561123905703,
+  "compression_seconds": 2.0361958160065114,
+  "grouping_path": "results/qjl_direct/shared/qwen/groups-0c0fb7aea36af7a8.pt",
+  "grouping_rescode_parameter_estimate": {
+    "budget_params": 6228541440,
+    "compressed_params": 6226076160,
+    "residual_params": 32137728,
+    "original_params": 12457082880,
+    "kept_ratio": 0.49980209812973486,
+    "compression_ratio": 0.5001979018702651,
+    "extra_merges": 4
+  },
+  "summary": {
+    "gate": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 0.5710883177816868,
+        "max": 0.6403007507324219,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5005013346672058,
+        "max": 0.5005013346672058,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.4289116756990552,
+        "max": 0.43208348751068115,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 1.7126976810395718,
+        "max": 1.7168164253234863,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 3.477171850452265e-08,
+        "max": 3.497221001680373e-08,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "up": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 0.5700325425714254,
+        "max": 0.6394035816192627,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5000271201133728,
+        "max": 0.5000271201133728,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.42996744997799397,
+        "max": 0.4330219030380249,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 1.7125395312905312,
+        "max": 1.7164409160614014,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 3.484834187883479e-08,
+        "max": 3.504964851686054e-08,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "down": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 0.5699609592556953,
+        "max": 0.6398782730102539,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.49999338388442993,
+        "max": 0.49999338388442993,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.43003904074430466,
+        "max": 0.43271565437316895,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 1.5638316832482815,
+        "max": 1.5677320957183838,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 3.204989457161744e-08,
+        "max": 3.2315369935531635e-08,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "all": {
+      "count": 96,
+      "sign_agreement": {
+        "mean": 0.5703606065362692,
+        "max": 0.6403007507324219,
+        "count": 96
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5001739462216696,
+        "max": 0.5005013346672058,
+        "count": 96
+      },
+      "majority_flip_rate": {
+        "mean": 0.42963938880711794,
+        "max": 0.4330219030380249,
+        "count": 96
+      },
+      "residual_frobenius_ratio": {
+        "mean": 1.6630229651927948,
+        "max": 1.7168164253234863,
+        "count": 96
+      },
+      "svd_energy_retention": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 96
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 96
+      },
+      "weight_relative_error": {
+        "mean": 3.388998498499163e-08,
+        "max": 3.504964851686054e-08,
+        "count": 96
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    }
+  },
+  "moe_output_relative_errors": [],
+  "original_routed_bf16_bytes": 1038090240,
+  "diagnostic_only": true,
+  "checkpoint": null,
+  "original_to_compressed_probe_relative_l2": 0.008668404072523117,
+  "gpu_shared_packed_sign_bytes": 1245184,
+  "gpu_expert_row_norm_bytes": 622592,
+  "gpu_lowrank_factor_bytes": 1107296256,
+  "gpu_singleton_bytes": 484442112,
+  "gpu_projection_matrix_bytes": 14155776,
+  "inference_forward_median_ms": 260.9158540144563,
+  "gpu_peak_allocated_bytes": [
+    30346101760
+  ],
+  "gpu_process_allocated_bytes": [
+    29727769088
+  ]
+}

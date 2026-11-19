@@ -1,0 +1,263 @@
+{
+  "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+  "source": "/workspace/.hf_home/hub/models--Qwen--Qwen1.5-MoE-A2.7B-Chat/snapshots/ec052fda178e241c7c443468d2fa1db6618996be",
+  "mode": "compress",
+  "model_load_seconds": 31.46961982618086,
+  "compression_seconds": 1.6449543649796396,
+  "grouping_path": "results/qjl_direct/shared/qwen/groups-0c0fb7aea36af7a8.pt",
+  "grouping_rescode_parameter_estimate": {
+    "budget_params": 6228541440,
+    "compressed_params": 6226076160,
+    "residual_params": 32137728,
+    "original_params": 12457082880,
+    "kept_ratio": 0.49980209812973486,
+    "compression_ratio": 0.5001979018702651,
+    "extra_merges": 4
+  },
+  "summary": {
+    "gate": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5005464553833008,
+        "max": 0.5005464553833008,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 3.5474491640925407,
+        "max": 3.550400972366333,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 0.08407743088901043,
+        "max": 0.09389692544937134,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.9570368006825447,
+        "max": 0.9594661593437195,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 3.395038992166519,
+        "max": 3.4054815769195557,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "up": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5000286102294922,
+        "max": 0.5000286102294922,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 3.5476696640253067,
+        "max": 3.5502355098724365,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 0.08003798127174377,
+        "max": 0.0837090015411377,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.9591462519019842,
+        "max": 0.9605905413627625,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 3.402733750641346,
+        "max": 3.4080305099487305,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "down": {
+      "count": 32,
+      "sign_agreement": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 32
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.4999687969684601,
+        "max": 0.4999687969684601,
+        "count": 32
+      },
+      "majority_flip_rate": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 32
+      },
+      "residual_frobenius_ratio": {
+        "mean": 2.938341960310936,
+        "max": 2.941333532333374,
+        "count": 32
+      },
+      "svd_energy_retention": {
+        "mean": 0.08718373998999596,
+        "max": 0.09216797351837158,
+        "count": 32
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.9554136861115694,
+        "max": 0.957261860370636,
+        "count": 32
+      },
+      "weight_relative_error": {
+        "mean": 2.807332083582878,
+        "max": 2.81282114982605,
+        "count": 32
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "all": {
+      "count": 96,
+      "sign_agreement": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 96
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5001812875270844,
+        "max": 0.5005464553833008,
+        "count": 96
+      },
+      "majority_flip_rate": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 96
+      },
+      "residual_frobenius_ratio": {
+        "mean": 3.344486929476261,
+        "max": 3.550400972366333,
+        "count": 96
+      },
+      "svd_energy_retention": {
+        "mean": 0.08376638405025005,
+        "max": 0.09389692544937134,
+        "count": 96
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.9571989128986994,
+        "max": 0.9605905413627625,
+        "count": 96
+      },
+      "weight_relative_error": {
+        "mean": 3.2017016087969146,
+        "max": 3.4080305099487305,
+        "count": 96
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    }
+  },
+  "moe_output_relative_errors": [],
+  "original_routed_bf16_bytes": 1038090240,
+  "checkpoint_bytes": 495494479,
+  "shared_packed_sign_bytes": 4980736,
+  "expert_row_norm_bytes": 622592,
+  "lowrank_factor_bytes": 5308416,
+  "singleton_bf16_bytes": 484442112,
+  "tensor_bytes": 495353856,
+  "metadata_and_zip_bytes": 140623,
+  "checkpoint": "results/qjl_bundle/smoke_no_bundle_d256_r8/bundle_qjl_state.pt",
+  "effective_bits_per_routed_weight": 7.637015895650844,
+  "shared_sign_bits_per_routed_weight": 0.07676767676767676,
+  "row_norm_bits_per_routed_weight": 0.009595959595959595,
+  "lowrank_bits_per_routed_weight": 0.08181818181818182,
+  "singleton_bits_per_routed_weight": 7.466666666666667,
+  "routed_bf16_compression_ratio": 0.5226865065218222,
+  "vs_int4_bytes_ratio": 1.909253973912711,
+  "vs_int8_bytes_ratio": 0.9546269869563555,
+  "checkpoint_reload_probe_max_abs": 0.0,
+  "original_to_compressed_probe_relative_l2": 0.704379677772522,
+  "gpu_shared_packed_sign_bytes": 4980736,
+  "gpu_expert_row_norm_bytes": 622592,
+  "gpu_lowrank_factor_bytes": 5308416,
+  "gpu_singleton_bytes": 484442112,
+  "gpu_projection_matrix_bytes": 1769472,
+  "inference_forward_median_ms": 262.0140069629997,
+  "gpu_peak_allocated_bytes": [
+    29151511552
+  ],
+  "gpu_process_allocated_bytes": [
+    28521710080
+  ]
+}
