@@ -135,6 +135,36 @@ class BundleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "diagnostic-only"):
             save_checkpoint(data, config("none", "exact"), "/tmp/should-not-write.pt")
 
+    def test_none_lowrank_uses_individual_signs_and_reloads(self):
+        model = ToyModel()
+        original = copy.deepcopy(model)
+        fresh = copy.deepcopy(model)
+        groups = {0: [[0, 1], [2], [3]]}
+        x = torch.randn(3, 7)
+        data, records, _ = compress_model(model, groups, config("none"))
+        stored = data[0]["clusters"][0]
+        self.assertEqual(set(stored["sketches"]["gate"]), {"0", "1"})
+        bank = ProjectionBank(config()["qjl_d"], config()["projection_seed"])
+        for expert_id in (0, 1):
+            for projection in ("gate", "up", "down"):
+                weight = getattr(original.model.layers[0].mlp.experts[expert_id],
+                                 projection + "_proj").weight.detach()
+                packed, norms = pack_residual(weight, bank)
+                self.assertTrue(torch.equal(stored["sketches"][projection][str(expert_id)], packed))
+                self.assertTrue(torch.equal(stored["experts"][expert_id][projection]["norms"], norms))
+        self.assertTrue(torch.equal(model.model.layers[0].mlp(x)[1],
+                                    original.model.layers[0].mlp(x)[1]))
+        self.assertEqual(len(records), 6)
+        before = model.model.layers[0].mlp(x)[0]
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "individual.pt"
+            save_checkpoint(data, config("none"), path)
+            loaded = load_checkpoint(fresh, path, backend="reference")
+            self.assertEqual(loaded["layers"][0]["groups"], groups[0])
+            self.assertTrue(torch.equal(before, fresh.model.layers[0].mlp(x)[0]))
+            self.assertTrue(torch.equal(original.model.layers[0].mlp.experts[2](x),
+                                        fresh.model.layers[0].mlp.experts[2](x)))
+
     @unittest.skipUnless(torch.cuda.is_available(), "CUDA unavailable")
     def test_triton_reference_parity(self):
         from rescode.qjl.bundled_model import qjl_output

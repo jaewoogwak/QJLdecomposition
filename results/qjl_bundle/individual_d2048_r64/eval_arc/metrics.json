@@ -1,0 +1,108 @@
+{
+  "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+  "source": "/workspace/.hf_home/hub/models--Qwen--Qwen1.5-MoE-A2.7B-Chat/snapshots/ec052fda178e241c7c443468d2fa1db6618996be",
+  "mode": "eval",
+  "model_load_seconds": 32.10049120592885,
+  "checkpoint": "results/qjl_bundle/individual_d2048_r64/bundle_qjl_state.pt",
+  "checkpoint_config": {
+    "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+    "layers": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "qjl_d": 2048,
+    "rank": 64,
+    "bundle_mode": "none",
+    "residual_mode": "lowrank",
+    "backend": "triton",
+    "projection_seed": 0,
+    "svd_seed": 42,
+    "svd_oversample": 8,
+    "svd_niter": 2,
+    "grouping_path": "results/qjl_direct/shared/qwen/groups-0c0fb7aea36af7a8.pt",
+    "grouping_summary": {
+      "budget_params": 6228541440,
+      "compressed_params": 6226076160,
+      "residual_params": 32137728,
+      "original_params": 12457082880,
+      "kept_ratio": 0.49980209812973486,
+      "compression_ratio": 0.5001979018702651,
+      "extra_merges": 4
+    },
+    "svd_method": "torch.svd_lowrank"
+  },
+  "checkpoint_bytes": 13914685015,
+  "shared_packed_sign_bytes": 931397632,
+  "expert_row_norm_bytes": 14553088,
+  "lowrank_factor_bytes": 992673792,
+  "singleton_bf16_bytes": 11972640768,
+  "tensor_bytes": 13911265280,
+  "metadata_and_zip_bytes": 3419735,
+  "gpu_shared_packed_sign_bytes": 931397632,
+  "gpu_expert_row_norm_bytes": 14553088,
+  "gpu_lowrank_factor_bytes": 992673792,
+  "gpu_singleton_bytes": 11972640768,
+  "gpu_projection_matrix_bytes": 0,
+  "inference_forward_median_ms": 157.9493850003928,
+  "gpu_peak_allocated_bytes": [
+    29145674752
+  ],
+  "gpu_process_allocated_bytes": [
+    18065412608
+  ],
+  "eval_seconds": 984.235809517093,
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        0.367003367003367,
+        0.351010101010101
+      ],
+      [
+        "arc_challenge",
+        0.2226962457337884,
+        0.2593856655290102
+      ]
+    ],
+    "avg": 0.2948498063685777,
+    "avg_norm_strict": 0.3051978832695556,
+    "avg_norm": 0.3051978832695556,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 0.2226962457337884,
+      "acc_stderr,none": 0.012158314774829908,
+      "acc_norm,none": 0.2593856655290102,
+      "acc_norm_stderr,none": 0.012808273573927102
+    },
+    "arc_easy": {
+      "acc,none": 0.367003367003367,
+      "acc_stderr,none": 0.009890173658452125,
+      "acc_norm,none": 0.351010101010101,
+      "acc_norm_stderr,none": 0.009793703885101047
+    }
+  }
+}

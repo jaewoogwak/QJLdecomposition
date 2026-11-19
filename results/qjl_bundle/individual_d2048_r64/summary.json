@@ -1,0 +1,270 @@
+{
+  "configuration": {
+    "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+    "layers": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "qjl_d": 2048,
+    "rank": 64,
+    "bundle_mode": "none",
+    "residual_mode": "lowrank",
+    "backend": "triton",
+    "projection_seed": 0,
+    "svd_seed": 42,
+    "svd_oversample": 8,
+    "svd_niter": 2,
+    "grouping_path": "results/qjl_direct/shared/qwen/groups-0c0fb7aea36af7a8.pt",
+    "grouping_summary": {
+      "budget_params": 6228541440,
+      "compressed_params": 6226076160,
+      "residual_params": 32137728,
+      "original_params": 12457082880,
+      "kept_ratio": 0.49980209812973486,
+      "compression_ratio": 0.5001979018702651,
+      "extra_merges": 4
+    },
+    "svd_method": "torch.svd_lowrank"
+  },
+  "summary": {
+    "gate": {
+      "count": 748,
+      "sign_agreement": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 748
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5008149449041183,
+        "max": 0.5015204548835754,
+        "count": 748
+      },
+      "majority_flip_rate": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 748
+      },
+      "residual_frobenius_ratio": {
+        "mean": 1.2522091079841962,
+        "max": 1.2541089057922363,
+        "count": 748
+      },
+      "svd_energy_retention": {
+        "mean": 0.24053352577163573,
+        "max": 0.29159700870513916,
+        "count": 748
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.8714578791576273,
+        "max": 0.8802738785743713,
+        "count": 748
+      },
+      "weight_relative_error": {
+        "mean": 1.0912470902032394,
+        "max": 1.1021062135696411,
+        "count": 748
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "up": {
+      "count": 748,
+      "sign_agreement": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 748
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.4999996613770883,
+        "max": 0.5000271201133728,
+        "count": 748
+      },
+      "majority_flip_rate": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 748
+      },
+      "residual_frobenius_ratio": {
+        "mean": 1.2522467752510213,
+        "max": 1.2537401914596558,
+        "count": 748
+      },
+      "svd_energy_retention": {
+        "mean": 0.22886226457708023,
+        "max": 0.2661479115486145,
+        "count": 748
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.87813994623123,
+        "max": 0.883928120136261,
+        "count": 748
+      },
+      "weight_relative_error": {
+        "mean": 1.0996478330642783,
+        "max": 1.1067168712615967,
+        "count": 748
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "down": {
+      "count": 748,
+      "sign_agreement": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 748
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.500003356785379,
+        "max": 0.5000298023223877,
+        "count": 748
+      },
+      "majority_flip_rate": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 748
+      },
+      "residual_frobenius_ratio": {
+        "mean": 1.0381230048954806,
+        "max": 1.0394535064697266,
+        "count": 748
+      },
+      "svd_energy_retention": {
+        "mean": 0.24581898669189312,
+        "max": 0.2872055172920227,
+        "count": 748
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.8684268839219037,
+        "max": 0.8750284314155579,
+        "count": 748
+      },
+      "weight_relative_error": {
+        "mean": 0.9015338966712595,
+        "max": 0.9082818031311035,
+        "count": 748
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    },
+    "all": {
+      "count": 2244,
+      "sign_agreement": {
+        "mean": 1.0,
+        "max": 1.0,
+        "count": 2244
+      },
+      "group_pairwise_sign_agreement": {
+        "mean": 0.5002726543555285,
+        "max": 0.5015204548835754,
+        "count": 2244
+      },
+      "majority_flip_rate": {
+        "mean": 0.0,
+        "max": 0.0,
+        "count": 2244
+      },
+      "residual_frobenius_ratio": {
+        "mean": 1.1808596293768994,
+        "max": 1.2541089057922363,
+        "count": 2244
+      },
+      "svd_energy_retention": {
+        "mean": 0.23840492568020302,
+        "max": 0.29159700870513916,
+        "count": 2244
+      },
+      "svd_residual_relative_error": {
+        "mean": 0.8726749031035871,
+        "max": 0.883928120136261,
+        "count": 2244
+      },
+      "weight_relative_error": {
+        "mean": 1.030809606646259,
+        "max": 1.1067168712615967,
+        "count": 2244
+      },
+      "activation_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "runtime_rounding_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      },
+      "expert_output_relative_error": {
+        "mean": null,
+        "max": null,
+        "count": 0
+      }
+    }
+  },
+  "original_routed_bf16_bytes": 24914165760,
+  "checkpoint_bytes": 13914685015,
+  "effective_bits_per_routed_weight": 8.936079272517452,
+  "routed_bf16_compression_ratio": 0.4414950454676593,
+  "moe_output_relative_errors": []
+}
