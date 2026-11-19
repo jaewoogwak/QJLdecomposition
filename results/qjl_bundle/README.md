@@ -9,8 +9,10 @@ set), using the Triton backend.
 | ---: | ---: | ---: | ---: | ---: |
 | 64 | 0.281987 | 0.212457 | 13,012,452,659 | 47.77% |
 | 128 | 0.348064 | 0.222696 | 14,005,127,135 | 43.79% |
+| 512 | 0.649832 | 0.361775 | 19,961,186,247 | 19.88% |
 
-The `full_majority_d2048_r64/` and `full_majority_d2048_r128/` directories
+The `full_majority_d2048_r64/`, `full_majority_d2048_r128/`, and
+`full_majority_d2048_r512/` directories
 contain the compression metrics, per-expert diagnostics, and `eval_arc/`
 results. The `smoke_*` directories contain single-layer validation runs.
 All JSON, CSV, and evaluation logs are versioned here. The large
