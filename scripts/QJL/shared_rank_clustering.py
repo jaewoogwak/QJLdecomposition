@@ -45,7 +45,8 @@ def truncated_base(mean: torch.Tensor, rank: int) -> torch.Tensor:
 class ResidualCosts:
     """Active group sums and memoized rank-constrained costs for one rank."""
 
-    def __init__(self, weights: torch.Tensor, rank: int):
+    def __init__(self, weights: torch.Tensor, rank: int,
+                 spectrum_cache: dict[tuple[int, ...], torch.Tensor] | None = None):
         _validate(weights, rank)
         self.weights = weights
         self.rank = min(rank, *weights.shape[1:])
@@ -55,6 +56,7 @@ class ResidualCosts:
             for i in range(len(weights))
         }
         self._costs: dict[tuple[int, ...], float] = {}
+        self._spectra = spectrum_cache if spectrum_cache is not None else {}
         flat = weights.flatten(1)
         self.gram = (flat @ flat.T).double().cpu()
 
@@ -64,8 +66,10 @@ class ResidualCosts:
             if self.rank == 0:
                 value = group.energy
             else:
-                value = group.energy - len(key) * captured_energy(
-                    group.weight_sum / len(key), self.rank)
+                if key not in self._spectra:
+                    singular = torch.linalg.svdvals(group.weight_sum / len(key))
+                    self._spectra[key] = singular.square().to(torch.float64).cumsum(0).cpu()
+                value = group.energy - len(key) * float(self._spectra[key][self.rank - 1])
             # Subtraction of large near-equal FP32 quantities can be slightly negative.
             if value < -1e-4 * max(group.energy, 1.0):
                 raise ArithmeticError(f"negative residual cost for {key}: {value}")

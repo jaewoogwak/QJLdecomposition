@@ -181,8 +181,9 @@ def run(args) -> None:
                                "exponent_mantissa_base_bytes": None})
             del original
             n, rows, cols = weights.shape
+            spectrum_cache = {}
             for rank in ranks:
-                costs = ResidualCosts(weights, rank)
+                costs = ResidualCosts(weights, rank, spectrum_cache)
                 metric_cache = {}
                 for count in counts:
                     seed = args.seed + layer * 1000003 + PROJECTIONS.index(projection) * 10007 + rank * 101 + count

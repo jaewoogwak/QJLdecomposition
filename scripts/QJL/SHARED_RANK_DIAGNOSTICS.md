@@ -12,8 +12,9 @@ The default candidate shortlist evaluates the eight cosine-nearest active group
 pairs by exact residual cost at each merge. This is **approximate greedy** because
 the lowest-cost pair can fall outside the shortlist. Set
 `--candidate-shortlist 0` for exhaustive greedy clustering. SVDs are computed
-in FP32, group sums and costs are cached within each rank, and ties use sorted
-expert IDs. This is an exact truncated SVD objective for every evaluated pair;
+in FP32; group sums, costs, and singular-value spectra are cached across group
+counts and ranks for each layer/projection. Ties use sorted expert IDs. This is
+an exact truncated SVD objective for every evaluated pair;
 the shortlist changes which pairs are evaluated.
 
 Run the default sweep on a GPU with the selected checkpoint shards present:
