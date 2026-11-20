@@ -1,4 +1,6 @@
 torch>=2.2
+safetensors>=0.4
+matplotlib>=3.7
 transformers==4.40.1
 datasets==2.18.0
 accelerate==0.28.0
