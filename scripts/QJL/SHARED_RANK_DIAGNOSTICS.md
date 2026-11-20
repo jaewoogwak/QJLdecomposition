@@ -13,7 +13,8 @@ pairs by exact residual cost at each merge. This is **approximate greedy** becau
 the lowest-cost pair can fall outside the shortlist. Set
 `--candidate-shortlist 0` for exhaustive greedy clustering. SVDs are computed
 in FP32; group sums, costs, and singular-value spectra are cached across group
-counts and ranks for each layer/projection. Ties use sorted expert IDs. This is
+counts and ranks for each layer/projection. Each agglomerative path is computed
+once per rank and reused for every requested group count. Ties use sorted expert IDs. This is
 an exact truncated SVD objective for every evaluated pair;
 the shortlist changes which pairs are evaluated.
 

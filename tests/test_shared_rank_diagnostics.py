@@ -50,6 +50,8 @@ class SharedRankTests(unittest.TestCase):
                          ResidualCosts(self.weights, 2).cluster(2, "rank_aware", 0))
         self.assertEqual(costs.cluster(2, "rank_aware", 3),
                          ResidualCosts(self.weights, 2).cluster(2, "rank_aware", 3))
+        self.assertEqual(costs.cluster(5, "rank_aware", 3),
+                         tuple((i,) for i in range(5)))
         self.assertEqual(random_groups(5, 2, 37), random_groups(5, 2, 37))
         self.assertEqual(sorted(map(len, random_groups(5, 2, 37, (1, 4)))), [1, 4])
 

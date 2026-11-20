@@ -57,6 +57,8 @@ class ResidualCosts:
         }
         self._costs: dict[tuple[int, ...], float] = {}
         self._spectra = spectrum_cache if spectrum_cache is not None else {}
+        self._paths: dict[tuple[str, int], tuple[dict[tuple[int, ...], Group],
+                                                 dict[int, tuple[tuple[int, ...], ...]]]] = {}
         flat = weights.flatten(1)
         self.gram = (flat @ flat.T).double().cpu()
 
@@ -104,7 +106,11 @@ class ResidualCosts:
             raise ValueError("method must be cosine or rank_aware")
         if not 1 <= count <= len(self.weights) or candidate_shortlist < 0:
             raise ValueError("invalid group count or shortlist size")
-        active = dict(self.groups)
+        path_key = (method, candidate_shortlist if method == "rank_aware" else 0)
+        if path_key not in self._paths:
+            active = dict(self.groups)
+            self._paths[path_key] = (active, {len(active): tuple(sorted(active))})
+        active, path = self._paths[path_key]
         while len(active) > count:
             keys = sorted(active)
             pairs = [(a, b) for i, a in enumerate(keys) for b in keys[i + 1:]]
@@ -119,7 +125,8 @@ class ResidualCosts:
                 a, b = by_cosine[0]
             merged = self.union(active.pop(a), active.pop(b))
             active[merged.members] = merged
-        return tuple(sorted(active))
+            path[len(active)] = tuple(sorted(active))
+        return path[count]
 
 
 def random_groups(expert_count: int, group_count: int, seed: int,
