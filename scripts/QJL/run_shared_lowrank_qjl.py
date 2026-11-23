@@ -571,7 +571,10 @@ def _summaries(rows: list[dict]) -> list[dict]:
     for row in rows:
         buckets[(row["projection"], row["rank"], row["input_source"])].append(row)
     result = []
-    for (projection, rank, source), items in sorted(buckets.items()):
+    for (projection, rank, source), all_items in sorted(buckets.items()):
+        items = [row for row in all_items if not row["singleton"]]
+        if not items:
+            continue
         w2 = sum(row["weight_squared_norm"] for row in items)
         r2 = sum(row["residual_squared_norm"] for row in items)
         e2 = sum(row["tail_squared_norm"] for row in items)
@@ -582,6 +585,7 @@ def _summaries(rows: list[dict]) -> list[dict]:
             means[f"case_{case}_mean_relative_l2"] = sum(values) / len(values) if values else None
         result.append({"projection": projection, "rank": rank,
                        "input_source": source, "expert_count": len(items),
+                       "excluded_singleton_count": len(all_items) - len(items),
                        "rho_r_over_w": math.sqrt(r2 / w2) if w2 else None,
                        "rho_e_over_w": math.sqrt(e2 / w2) if w2 else None,
                        "rho_e_over_r": math.sqrt(e2 / r2) if r2 else None,
@@ -592,7 +596,36 @@ def _summaries(rows: list[dict]) -> list[dict]:
                                             for row in items if row["oracle_eta_e"] is not None)
                                         / r2 if r2 else None),
                        **means})
+    if not result:
+        raise ValueError("no non-singleton experts available for residual summary")
     return result
+
+
+def resummarize_results(out: Path) -> dict:
+    """Rebuild aggregate diagnostics from saved per-expert rows without model inference."""
+    out = out.expanduser().resolve()
+    data = json.loads((out / "summary.json").read_text())
+    numeric = ("weight_squared_norm", "residual_squared_norm", "tail_squared_norm",
+               "oracle_eta_uv", "oracle_eta_e",
+               *(f"case_{case}_relative_l2" for case in CASES))
+    rows = []
+    with (out / "per_expert.csv").open(newline="") as handle:
+        for raw in csv.DictReader(handle):
+            row = {**raw, "rank": int(raw["rank"]),
+                   "singleton": raw["singleton"].lower() == "true"}
+            row.update({key: float(raw[key]) if raw[key] else None for key in numeric})
+            rows.append(row)
+    if not rows:
+        raise ValueError("per_expert.csv has no diagnostic rows")
+    summary = _summaries(rows)
+    data["config"]["summary_population"] = "non_singleton"
+    data["summary"] = summary
+    _write_csv(out / "summary.csv", summary)
+    (out / "summary.json").write_text(json.dumps(data, indent=2) + "\n")
+    (out / "REPORT.md").write_text(_report(
+        data["config"], summary, data["checkpoints"], data["skipped_ranks"]))
+    _plot(out, summary)
+    return data
 
 
 def _plot(out: Path, summaries: list[dict]) -> None:
@@ -654,13 +687,18 @@ def _report(config: dict, summaries: list[dict], checkpoints: list[dict],
              f"projections: {config['projections']}; ranks: {config['ranks']}; "
              f"QJL D={config['qjl_d']}.",
              f"Grouping source: {config['grouping_source']}.", "",
+             "Aggregated residual norms, energies, and output errors exclude singleton "
+             "experts (which retain their original BF16 weights and have zero residual). "
+             "The per-expert CSV retains them with `singleton=True` for auditability. "
+             "Norm ratios use sums of squared norms over non-singleton experts.", "",
              "## Output diagnostics", "",
-             "| Projection | Rank | Input | A relative L2 | B relative L2 | "
+             "| Projection | Rank | Input | Experts | A relative L2 | B relative L2 | "
              "C relative L2 | Tail / W |",
-             "|---|---:|---|---:|---:|---:|---:|"]
+             "|---|---:|---|---:|---:|---:|---:|---:|"]
     for row in summaries:
         fmt = lambda x: "n/a" if x is None else f"{x:.5f}"
         lines.append(f"| {row['projection']} | {row['rank']} | {row['input_source']} | "
+                     f"{row['expert_count']} | "
                      f"{fmt(row['case_A_mean_relative_l2'])} | "
                      f"{fmt(row['case_B_mean_relative_l2'])} | "
                      f"{fmt(row['case_C_mean_relative_l2'])} | "
@@ -817,6 +855,7 @@ def analyze_or_compress(args) -> dict:
               "qjl_d": args.qjl_d, "seed": args.seed, "num_groups": args.num_groups,
               "singleton_ratio": args.singleton_ratio, "backend": args.backend,
               "saliency_delta": args.saliency_delta, "mode": args.mode,
+              "summary_population": "non_singleton",
               "grouping_source": cache.get("metadata", {}).get(
                   "source", "supplied grouping cache; origin unspecified"),
               "grouping_cache": str(args.grouping_cache) if args.grouping_cache else
@@ -894,7 +933,7 @@ def evaluate(args) -> dict:
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=("analyze", "compress", "eval"),
+    parser.add_argument("--mode", choices=("analyze", "compress", "eval", "summarize"),
                         required=True)
     parser.add_argument("--model-path", type=Path,
                         default=Path("/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat"))
@@ -938,6 +977,8 @@ def main(argv=None):
     args = arguments(argv)
     if args.mode == "eval":
         evaluate(args)
+    elif args.mode == "summarize":
+        resummarize_results(args.output_dir)
     else:
         analyze_or_compress(args)
 

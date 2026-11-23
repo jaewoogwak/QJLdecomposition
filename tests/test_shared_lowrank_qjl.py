@@ -17,7 +17,7 @@ import torch.nn.functional as F
 from safetensors.torch import save_file
 
 from scripts.QJL.run_shared_lowrank_qjl import (
-    C4_FILENAME, analyze_or_compress, arguments, ensure_c4,
+    C4_FILENAME, _summaries, analyze_or_compress, arguments, ensure_c4, main,
     groups_from_descriptors, groups_from_labels,
     install_checkpoint, output_metrics, rank_parts, routed_or_synthetic,
     saliency_average, svd_factors,
@@ -68,6 +68,27 @@ class ToyModel(nn.Module):
 
 
 class SharedLowrankQJLTests(unittest.TestCase):
+    def test_summary_excludes_singletons_from_norms_and_output_errors(self):
+        decomposed = {"projection": "gate", "rank": 0, "input_source": "routed",
+                      "singleton": False, "weight_squared_norm": 4.0,
+                      "residual_squared_norm": 1.0, "tail_squared_norm": 0.25,
+                      "oracle_eta_uv": 0.75, "oracle_eta_e": 0.25,
+                      "case_A_relative_l2": 0.1, "case_B_relative_l2": 0.2,
+                      "case_C_relative_l2": 0.3}
+        singleton = {**decomposed, "singleton": True,
+                     "weight_squared_norm": 100.0,
+                     "residual_squared_norm": 0.0, "tail_squared_norm": 0.0,
+                     "oracle_eta_uv": None, "oracle_eta_e": None,
+                     "case_A_relative_l2": 0.0, "case_B_relative_l2": 0.0,
+                     "case_C_relative_l2": 0.0}
+        summary, = _summaries([decomposed, singleton])
+        self.assertEqual(summary["expert_count"], 1)
+        self.assertEqual(summary["excluded_singleton_count"], 1)
+        self.assertAlmostEqual(summary["rho_r_over_w"], 0.5)
+        self.assertAlmostEqual(summary["rho_e_over_w"], 0.25)
+        self.assertAlmostEqual(summary["rho_e_over_r"], 0.5)
+        self.assertAlmostEqual(summary["case_A_mean_relative_l2"], 0.1)
+
     def test_c4_download_verify_and_reuse(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -212,9 +233,15 @@ class SharedLowrankQJLTests(unittest.TestCase):
                               "--ranks", "0,1", "--qjl-d", "16",
                               "--backend", "reference", "--device", "cpu",
                               "--output-dir", str(out)])
-            analyze_or_compress(args)
+            result = analyze_or_compress(args)
             self.assertFalse((out / "checkpoints").exists())
             self.assertTrue((out / "summary.json").is_file())
+            self.assertTrue(all(row["expert_count"] == 2 and
+                                row["excluded_singleton_count"] == 1
+                                for row in result["summary"]))
+            main(["--mode", "summarize", "--output-dir", str(out)])
+            self.assertEqual(json.loads((out / "summary.json").read_text())["summary"],
+                             result["summary"])
 
     def test_separate_rescode_group_and_saliency_files(self):
         with tempfile.TemporaryDirectory() as directory:
