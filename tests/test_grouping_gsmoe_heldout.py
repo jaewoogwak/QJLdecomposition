@@ -5,15 +5,58 @@ import math
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import torch
 
 from scripts.QJL.evaluate_grouping_gsmoe_heldout import (
-    _record_metrics, _summarize, prepare_disjoint_shard, sha256_file,
+    _record_metrics, _summarize, ensure_heldout_inputs, prepare_disjoint_shard,
+    sha256_file,
 )
 
 
 class HeldoutTests(unittest.TestCase):
+    def test_evaluate_collects_once_and_reuses_matching_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            checkpoint = root / "checkpoints/shared_4/residual_0/layer_12.pt"
+            checkpoint.parent.mkdir(parents=True)
+            checkpoint.write_bytes(b"checkpoint")
+            args = SimpleNamespace(
+                layers="12", shared_ranks=[4], residual_ranks=[0],
+                checkpoint_root=root / "checkpoints", output_dir=root / "output",
+                heldout_cache=root / "heldout_cache", train_cache=root / "train_cache",
+                provenance=None, train_data=root / "train.json",
+                heldout_data=root / "heldout.json", seed=17,
+                calibration_blocks=4, calibration_seqlen=256,
+                calibration_batch_size=2, calibration_samples=8)
+            with patch("scripts.QJL.evaluate_grouping_gsmoe_heldout.collect_heldout") as collect:
+                ensure_heldout_inputs(args)
+                collect.assert_called_once()
+            args.output_dir.mkdir()
+            args.heldout_cache.mkdir()
+            (args.heldout_cache / "layer_12.pt").write_bytes(b"samples")
+            provenance = {"verified_disjoint": True, "layers": [12],
+                          "heldout_cache": str(args.heldout_cache),
+                          "train_file": str(args.train_data),
+                          "heldout_file": str(args.heldout_data),
+                          "seed": 17, "calibration_blocks": 4,
+                          "calibration_seqlen": 256, "calibration_batch_size": 2,
+                          "sample_cap": 8}
+            (args.output_dir / "data_provenance.json").write_text(json.dumps(provenance))
+            with patch("scripts.QJL.evaluate_grouping_gsmoe_heldout.collect_heldout") as collect:
+                ensure_heldout_inputs(args)
+                collect.assert_not_called()
+                args.seed = 18
+                ensure_heldout_inputs(args)
+                collect.assert_called_once()
+            self.assertTrue((args.heldout_cache / "layer_12.pt.stale-1").is_file())
+            self.assertTrue((args.output_dir / "data_provenance.json.stale-1").is_file())
+            checkpoint.unlink()
+            with self.assertRaises(FileNotFoundError):
+                ensure_heldout_inputs(args)
+
     def test_exact_document_overlap_is_removed_without_touching_train(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

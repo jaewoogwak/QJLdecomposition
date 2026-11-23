@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from scripts.QJL.run_grouping_gsmoe import (
-    MODEL_ID, PROJECTIONS, WeightReader, _metrics, _projected_output, _write_csv,
+    MODEL_ID, PROJECTIONS, WeightReader, _archive_stale, _metrics, _projected_output, _write_csv,
     collect_calibration, load_calibration_layer, validate_groups,
 )
 from scripts.QJL.run_shared_lowrank_qjl import selected
@@ -161,6 +161,54 @@ def collect_heldout(args) -> dict:
                        "heldout_cache": str(cache), "routed_counts": counts})
     (out / "data_provenance.json").write_text(json.dumps(provenance, indent=2) + "\n")
     return provenance
+
+
+def ensure_heldout_inputs(args) -> None:
+    """Make evaluate a single command after compress; keep incomplete caches."""
+    layers = selected(args.layers, 24)
+    checkpoints = [args.checkpoint_root / f"shared_{sr}" / f"residual_{rr}" /
+                   f"layer_{layer}.pt" for layer in layers
+                   for sr in args.shared_ranks for rr in args.residual_ranks]
+    missing = [path for path in checkpoints if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(f"compress must finish before held-out evaluation; "
+                                f"missing {len(missing)} checkpoint files, first: {missing[0]}")
+    out = args.output_dir.expanduser().resolve()
+    cache = args.heldout_cache.expanduser().resolve()
+    train_cache = args.train_cache.expanduser().resolve()
+    if cache == train_cache or cache == train_cache.parent:
+        raise ValueError("held-out cache must be separate from train calibration cache")
+    provenance_path = (args.provenance.expanduser().resolve() if args.provenance
+                       else out / "data_provenance.json")
+    if args.provenance and not provenance_path.is_file():
+        raise FileNotFoundError(f"explicit provenance file is missing: {provenance_path}")
+    existing = [cache / f"layer_{layer}.pt" for layer in layers]
+    provenance = json.loads(provenance_path.read_text()) if provenance_path.is_file() else None
+    compatible = (provenance is not None and provenance.get("verified_disjoint") is True
+                  and all(path.is_file() for path in existing))
+    if compatible and not args.provenance:
+        compatible = (
+            set(layers).issubset(provenance.get("layers", []))
+            and provenance.get("heldout_cache") == str(cache)
+            and provenance.get("train_file") == str(args.train_data.expanduser().resolve())
+            and provenance.get("heldout_file") == str(args.heldout_data.expanduser().resolve())
+            and provenance.get("seed") == args.seed
+            and provenance.get("calibration_blocks") == args.calibration_blocks
+            and provenance.get("calibration_seqlen") == args.calibration_seqlen
+            and provenance.get("calibration_batch_size") == args.calibration_batch_size
+            and provenance.get("sample_cap") == args.calibration_samples)
+    if compatible:
+        print("[grouping-gsmoe-heldout] reusing routed activation cache", flush=True)
+        return
+    if args.provenance:
+        raise ValueError("explicit provenance and held-out cache do not match requested layers")
+    if provenance_path.is_file():
+        _archive_stale(provenance_path)
+    for path in existing:
+        if path.is_file():
+            _archive_stale(path)
+    print("[grouping-gsmoe-heldout] collecting separate C4 routed activations", flush=True)
+    collect_heldout(args)
 
 
 def _rank_list(value: str, allow_zero: bool = False) -> list[int]:
@@ -650,6 +698,7 @@ def main(argv=None):
     args = arguments(argv)
     if args.mode == "collect":
         return collect_heldout(args)
+    ensure_heldout_inputs(args)
     return evaluate_saved_factors(args)
 
 

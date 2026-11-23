@@ -26,7 +26,7 @@ bash scripts/QJL/run_grouping_gsmoe.sh smoke
 
 The smoke command collects full routed covariance for Layer 12 using four short C4 calibration blocks, then compresses Experts 0–1 with shared rank 4 and residual ranks 0/2. It writes to `results/grouping_gsmoe/full_cov_smoke/`. Its small sample setting checks mechanics, not model quality.
 
-On the current instance, the 10 toy/held-out tests passed. The real Layer 12 compress smoke completed: the 60 experts accumulated 24–116 routed tokens each while only eight diagnostic inputs per expert were saved; selected Experts 0/1 accumulated 61/62 tokens. Two BF16 checkpoints and 12 projection-diagnostic rows were written. A separate C4 shard `00001` smoke evaluation on the same saved factors reproduced the compress Train metrics with maximum absolute difference 0. The two-expert, rank-4 SwiGLU pooled Relative L2 was 0.64295 (Train) versus 0.99914 (Held-out) at residual rank 0, and 0.63953 versus 1.00000 at residual rank 2. These tiny ranks are for code validation only. The full 24-layer compress and full lm-eval were not run for this implementation.
+On the current instance, the 11 toy/held-out tests passed. The real Layer 12 compress smoke completed: the 60 experts accumulated 24–116 routed tokens each while only eight diagnostic inputs per expert were saved; selected Experts 0/1 accumulated 61/62 tokens. Two BF16 checkpoints and 12 projection-diagnostic rows were written. A separate C4 shard `00001` smoke evaluation on the same saved factors reproduced the compress Train metrics with maximum absolute difference 0. The two-expert, rank-4 SwiGLU pooled Relative L2 was 0.64295 (Train) versus 0.99914 (Held-out) at residual rank 0, and 0.63953 versus 1.00000 at residual rank 2. The single-command `evaluate` path was also tested from an empty held-out cache and then rerun to verify cache reuse. These tiny ranks are for code validation only. The full 24-layer compress and full lm-eval were not run for this implementation.
 
 ## A. Full 24-layer compress with automatic diagnostics
 
@@ -49,27 +49,21 @@ Use `--mode analyze` through the same wrapper to generate diagnostics without ch
 
 ## B. Separate held-out routed-output evaluation
 
-After A, collect new C4 shard `00001` routed inputs once. The collection checks exact text-document overlap against training shard `00000` and saves activations outside Git. Held-out inputs are never used to fit grouping, shared projections, coefficients, or SVD. `evaluate` loads the saved BF16 checkpoints and compares the same factors on train and held-out inputs for Layers 0, 12, and 23.
+After A, run one `evaluate` command. On its first run it automatically downloads C4 shard `00001` if needed, verifies exact text-document separation from training shard `00000`, collects original-router routed inputs, and immediately evaluates the saved BF16 checkpoints. Later runs reuse the held-out activation cache. Held-out inputs are never used to fit grouping, shared projections, coefficients, or SVD. The collection cache remains outside Git.
 
 ```bash
 cd /home/jaewoo/QJLdecomposition
-.venv/bin/python scripts/QJL/evaluate_grouping_gsmoe_heldout.py \
-  --mode collect --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
-  --layers 0,12,23 --seed 31415 --calibration-blocks 32 \
-  --calibration-seqlen 2048 --calibration-batch-size 2 \
-  --calibration-samples 256 --min-heldout-samples 256
-
 .venv/bin/python scripts/QJL/evaluate_grouping_gsmoe_heldout.py \
   --mode evaluate --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
   --layers 0,12,23 --shared-ranks 64,128,256 \
   --residual-ranks 0,32,64,128,256 --min-heldout-samples 256
 ```
 
-Run `collect` only when the held-out cache is absent. `evaluate` is repeatable with the existing cache. Its output is `full_cov/heldout_layers_0_12_23/`, with `per_projection.csv`, `per_expert_swiglu.csv`, layer summaries, `train_vs_heldout.csv`, `summary.json`, factor/cache hashes, provenance, and `REPORT.md`. The full 24-layer compress must finish before the 15 rank combinations for these layers are available. Earlier held-out results under `results/grouping_gsmoe/heldout_layers_0_12_23/` describe the old 256-sample-fitted checkpoints, not this method.
+`evaluate` checks that the requested checkpoint files exist before collecting. If the held-out cache is incomplete or its collection settings changed, it archives the old files and recollects them. Its output is `full_cov/heldout_layers_0_12_23/`, with `per_projection.csv`, `per_expert_swiglu.csv`, layer summaries, `train_vs_heldout.csv`, `summary.json`, factor/cache hashes, provenance, and `REPORT.md`. The full 24-layer compress must finish before the 15 rank combinations for these layers are available. Earlier held-out results under `results/grouping_gsmoe/heldout_layers_0_12_23/` describe the old 256-sample-fitted checkpoints, not this method.
 
 ## C. Full ARC-Easy and ARC-Challenge evaluation for every checkpoint
 
-This loop is for manual execution after A and B. `--eval-limit 0` evaluates every example in each task. Each rank combination writes independently to `full_cov/eval/shared_{rank}/residual_{rank}/`.
+This loop is for manual execution after A. `--eval-limit 0` evaluates every example in each task. Each rank combination writes independently to `full_cov/eval/shared_{rank}/residual_{rank}/`.
 
 ```bash
 cd /home/jaewoo/QJLdecomposition
