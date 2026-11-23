@@ -14,7 +14,7 @@ For Down, each group stores one output basis `P_g` and each expert stores `B_i`:
 
 The `P_g` bases are refit from group-pooled routed calibration statistics after grouping. Gate/Up use the leading eigenspace of `sqrt(C_x) (Σ W_iᵀW_i) sqrt(C_x)`, mapped back through `C_x^{-1/2}` and QR. Down uses the leading eigenspace of `Σ Y_down,iᵀY_down,i`. Per-expert Gate/Up coefficients solve the covariance-weighted least-squares problem; Down uses `P_gᵀW_i`.
 
-The FP32 residual is computed **after reconstructing the stored BF16 shared basis and coefficient**. Its FP32 SVD is sliced at each residual rank. Residual rank 0 stores no `U_i,V_i` and is the shared projection only baseline. Every checkpoint factor is BF16. Checkpoint installation retains the original router, top-k selection, shared expert, shared expert gate, and Qwen SwiGLU operation.
+The FP32 residual is computed **after reconstructing the stored BF16 shared basis and coefficient**. Its FP32 SVD is sliced at each residual rank. Residual rank 0 stores no `U_i,V_i` and is the shared projection only baseline. Every checkpoint factor is BF16. Routed output diagnostics use the checkpoint's BF16 factor matmuls and the original BF16 expert weights; FP32 SVD energy remains a separate measurement. Checkpoint installation retains the original router, top-k selection, shared expert, shared expert gate, and Qwen SwiGLU operation.
 
 For singleton probe `P_j`, grouping uses the GS-MoE gain
 
@@ -70,6 +70,8 @@ The full `compress` sweep writes 15 independent checkpoints and can consume subs
 ## Outputs and metrics
 
 `results/grouping_gsmoe/analysis/` contains `per_projection.csv`, `per_expert_swiglu.csv`, `groups.csv`, `routing_frequency.csv`, projection and SwiGLU summary CSVs, `summary.json`, `REPORT.md`, and graphs. `compress` adds `checkpoint_storage.csv` and manifests. Per-expert rows distinguish FP32 oracle SVD energy from stored BF16 factor error. Summary CSVs contain **expert means** and **pooled squared-norm** metrics separately. Gate/Up/Down outputs use each expert's routed inputs; full SwiGLU output runs the reconstructed Gate, Up, and Down paths together on routed hidden states.
+
+Calibration-aware projection optimizes routed output reconstruction. Its unweighted Frobenius residual norm `||R||_F/||W||_F` can therefore exceed 1 even when routed output error improves.
 
 ## Checks run during implementation
 

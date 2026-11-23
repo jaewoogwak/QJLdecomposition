@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from safetensors.torch import save_file
 
 from scripts.QJL.run_grouping_gsmoe import (
-    _part_for_rank, affinity_from_gains, analyze_or_compress, arguments,
+    _part_for_rank, _projected_output, affinity_from_gains, analyze_or_compress, arguments,
     balanced_kmedoids, calibration_coefficient, down_projection_gain,
     input_projection_gain, install_checkpoint, reconstruct_shared,
     shared_projection, validate_groups, load_calibration_layer,
@@ -201,6 +201,12 @@ class GroupingGSMoETests(unittest.TestCase):
                 actual, logits = block(x)
                 torch.testing.assert_close(logits, original_logits, atol=0, rtol=0)
                 self.assertTrue(torch.isfinite(actual.float()).all())
+                payload = torch.load(manifest.parent / "layer_0.pt", weights_only=False)
+                owner = next(j for j, members in enumerate(payload["groups"]) if 0 in members)
+                expected_gate = _projected_output(
+                    x, payload["experts"][0]["gate"], payload["bases"][owner]["gate"], "gate")
+                actual_gate = block.experts[0].project("gate", x)
+                torch.testing.assert_close(actual_gate, expected_gate, atol=0, rtol=0)
                 loaded_again = copy.deepcopy(model)
                 install_checkpoint(loaded_again, manifest)
                 other = loaded_again.model.layers[0].mlp(x)[0]

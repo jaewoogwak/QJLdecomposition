@@ -550,15 +550,17 @@ def _part_for_rank(residual: torch.Tensor, left: torch.Tensor,
 
 def _projected_output(x: torch.Tensor, part: dict, p: torch.Tensor,
                       direction: str) -> torch.Tensor:
+    """Match ProjectedExpert's BF16 checkpoint arithmetic on routed activations."""
+    x = x.to(torch.bfloat16)
+    coeff = part["coeff"].to(x.device)
+    p = p.to(x.device)
     if direction == "down":
-        y = F.linear(F.linear(x, part["coeff"].to(x.device).float()),
-                     p.to(x.device).float())
+        y = F.linear(F.linear(x, coeff), p)
     else:
-        y = F.linear(F.linear(x, p.to(x.device).float().T),
-                     part["coeff"].to(x.device).float())
+        y = F.linear(F.linear(x, p.T), coeff)
     if "u" in part:
-        y = y + F.linear(F.linear(x, part["v"].to(x.device).float()),
-                         part["u"].to(x.device).float())
+        y = y + F.linear(F.linear(x, part["v"].to(x.device)),
+                         part["u"].to(x.device))
     return y
 
 
@@ -664,7 +666,8 @@ def _report(config: dict, projection_summary: list[dict],
              "residual is defined after reconstructing those stored BF16 factors; "
              "the residual SVD oracle is measured before its factors are rounded to BF16. "
              "Pooled norm ratios use summed squared norms, while mean metrics average experts. "
-             "Routed output errors are separate from Frobenius/SVD energy.", "",
+             "Routed output errors run BF16 checkpoint arithmetic and are separate "
+             "from Frobenius/SVD energy.", "",
              "## Projection diagnostics", "",
              "| Projection | Shared rank | Residual rank | Mean R/W | Pooled R/W | "
              "Pooled stored Tail/W | Pooled output L2 |",
@@ -757,10 +760,10 @@ def analyze_or_compress(args) -> dict:
                     for payload in payloads.values():
                         payload["bases"][group_id] = stored_p
                     for expert in members:
-                        x = samples[expert]["gate"].float().to(device)
-                        middle = samples[expert]["down"].float().to(device)
-                        cov_x = _cov(x)
-                        weights = {key: reader.get(layer, expert, key).float().to(device)
+                        x = samples[expert]["gate"].to(device=device, dtype=torch.bfloat16)
+                        middle = samples[expert]["down"].to(device=device, dtype=torch.bfloat16)
+                        cov_x = _cov(x.float())
+                        weights = {key: reader.get(layer, expert, key).to(device)
                                    for key in PROJECTIONS}
                         if sr == args.shared_ranks[0]:
                             original_weight_count += sum(w.numel() for w in weights.values())
@@ -770,7 +773,7 @@ def analyze_or_compress(args) -> dict:
                             F.silu(original_gate) * original_up, weights["down"])
                         parts_by_rank = {rr: {} for rr in args.residual_ranks}
                         for key in PROJECTIONS:
-                            w = weights[key]
+                            w = weights[key].float()
                             p = bases[group_id][key][:, :sr].to(device)
                             coeff_oracle = calibration_coefficient(
                                 w, p, cov_x, key, args.covariance_ridge)
@@ -781,9 +784,9 @@ def analyze_or_compress(args) -> dict:
                             residual = w - shared_stored
                             left, right = svd_factors(residual, max(args.residual_ranks))
                             routed = middle if key == "down" else x
-                            y_original = F.linear(routed, w)
-                            shared_metrics = _metrics(F.linear(routed, shared_stored),
-                                                      y_original)
+                            y_original = F.linear(routed, weights[key])
+                            shared_metrics = _metrics(_projected_output(
+                                routed, {"coeff": coeff}, stored_p[key], key), y_original)
                             w2, r2 = _norm2(w), _norm2(residual)
                             oracle_r2 = _norm2(w - oracle_shared)
                             for rr in args.residual_ranks:
@@ -791,8 +794,8 @@ def analyze_or_compress(args) -> dict:
                                 parts_by_rank[rr][key] = part
                                 if payloads:
                                     payloads[rr]["experts"].setdefault(expert, {})[key] = part
-                                restored = reconstruct_part(part, stored_p[key], key, device)
-                                error = _metrics(F.linear(routed, restored), y_original)
+                                error = _metrics(_projected_output(
+                                    routed, part, stored_p[key], key), y_original)
                                 e2 = svd["oracle_tail_squared_norm"]
                                 projection_rows.append({
                                     "layer": layer, "group_id": group_id,
