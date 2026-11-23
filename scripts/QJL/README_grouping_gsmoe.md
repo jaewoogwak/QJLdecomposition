@@ -49,13 +49,13 @@ Use `--mode analyze` through the same wrapper to generate diagnostics without ch
 
 ## B. Separate held-out routed-output evaluation
 
-After A, run one `evaluate` command. On its first run it automatically downloads C4 shard `00001` if needed, verifies exact text-document separation from training shard `00000`, collects original-router routed inputs, and immediately evaluates the saved BF16 checkpoints. Later runs reuse the held-out activation cache. Held-out inputs are never used to fit grouping, shared projections, coefficients, or SVD. The collection cache remains outside Git.
+After A, run one `evaluate` command. This is a layer-wise routed-output reconstruction check, with Layers `0,12,23` selected by default; `--layers all` requests all 24 layers. It is separate from the full-model lm-eval command in sections C and D, which applies every layer listed in the checkpoint manifest and does not need `--layers`. On its first run, held-out `evaluate` automatically downloads C4 shard `00001` if needed, verifies exact text-document separation from training shard `00000`, collects original-router routed inputs, and immediately evaluates the saved BF16 checkpoints. Later runs reuse the held-out activation cache. Held-out inputs are never used to fit grouping, shared projections, coefficients, or SVD. The collection cache remains outside Git.
 
 ```bash
 cd /home/jaewoo/QJLdecomposition
 .venv/bin/python scripts/QJL/evaluate_grouping_gsmoe_heldout.py \
   --mode evaluate --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
-  --layers 0,12,23 --shared-ranks 64,128,256 \
+  --shared-ranks 64,128,256 \
   --residual-ranks 0,32,64,128,256 --min-heldout-samples 256
 ```
 
