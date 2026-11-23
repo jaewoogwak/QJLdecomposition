@@ -1,0 +1,39 @@
+{
+  "checkpoint": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov/checkpoints/shared_64/residual_128/manifest.json",
+  "shared_rank": 64,
+  "residual_rank": 128,
+  "tasks": "arc_easy,arc_challenge",
+  "eval_limit": 0,
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        0.561026936026936,
+        0.5328282828282829
+      ],
+      [
+        "arc_challenge",
+        0.2713310580204778,
+        0.30631399317406144
+      ]
+    ],
+    "avg": 0.41617899702370686,
+    "avg_norm_strict": 0.4195711380011722,
+    "avg_norm": 0.4195711380011722,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 0.2713310580204778,
+      "acc_stderr,none": 0.012993807727545796,
+      "acc_norm,none": 0.30631399317406144,
+      "acc_norm_stderr,none": 0.01347058441727651
+    },
+    "arc_easy": {
+      "acc,none": 0.561026936026936,
+      "acc_stderr,none": 0.010183076012972064,
+      "acc_norm,none": 0.5328282828282829,
+      "acc_norm_stderr,none": 0.010237645778853848
+    }
+  }
+}
