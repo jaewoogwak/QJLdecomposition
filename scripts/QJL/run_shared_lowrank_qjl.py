@@ -10,9 +10,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gzip
+import hashlib
 import json
 import math
 import os
+import shutil
 import sys
 from collections import defaultdict
 from contextlib import ExitStack
@@ -34,6 +37,53 @@ MODEL_ID = "Qwen/Qwen1.5-MoE-A2.7B-Chat"
 PROJECTIONS = ("gate", "up", "down")
 CASES = ("A", "B", "C")
 DEFAULT_TASKS = "arc_easy,arc_challenge"
+C4_FILENAME = "c4-train.00000-of-01024.json"
+C4_REPO_FILE = f"en/{C4_FILENAME}.gz"
+C4_SHA256 = "8ef8d75b0e045dec4aa5123a671b4564466b0707086a7ed1ba8721626dfffbc9"
+DEFAULT_C4 = ROOT / "rescode/data" / C4_FILENAME
+
+
+def ensure_c4(path: Path) -> Path:
+    """Download and verify the ResCode C4 shard only when it is missing."""
+    path = path.expanduser().resolve()
+    if path.is_file():
+        with path.open("r", encoding="utf-8") as handle:
+            first = json.loads(handle.readline())
+        if not isinstance(first.get("text"), str) or not first["text"]:
+            raise ValueError(f"calibration JSON lacks a nonempty text field: {path}")
+        return path
+    if path.name != C4_FILENAME:
+        raise FileNotFoundError(f"calibration file missing: {path}; automatic download "
+                                f"is available for {C4_FILENAME}")
+    from huggingface_hub import hf_hub_download
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[shared-lowrank-qjl] downloading allenai/c4/{C4_REPO_FILE}", flush=True)
+    compressed = Path(hf_hub_download(
+        repo_id="allenai/c4", repo_type="dataset", filename=C4_REPO_FILE,
+        local_dir=str(path.parent)))
+    digest = hashlib.sha256()
+    with compressed.open("rb") as handle:
+        for block in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(block)
+    if digest.hexdigest() != C4_SHA256:
+        raise ValueError("downloaded C4 shard SHA256 does not match the official file")
+    temporary = path.with_name(path.name + f".tmp{os.getpid()}")
+    try:
+        with gzip.open(compressed, "rb") as source, temporary.open("wb") as output:
+            shutil.copyfileobj(source, output, length=8 * 1024 * 1024)
+        with temporary.open("r", encoding="utf-8") as handle:
+            first = json.loads(handle.readline())
+        if not isinstance(first.get("text"), str) or not first["text"]:
+            raise ValueError("downloaded C4 JSON lacks a nonempty text field")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    if compressed.parent == path.parent / "en":
+        compressed.unlink(missing_ok=True)
+    print(f"[shared-lowrank-qjl] C4 ready: {path} ({path.stat().st_size} bytes)",
+          flush=True)
+    return path
 
 
 def selected(value: str, total: int) -> list[int]:
@@ -280,9 +330,7 @@ def prepare_cache(args, model_dir: Path, layers: list[int]) -> dict:
             source = _read_cache(args.routed_input_cache)
             cache["routed_samples"] = source.get("routed_samples", source)
         return cache
-    if not args.calibration_data:
-        raise ValueError("supply --grouping-cache with ResCode saliency, or "
-                         "--calibration-data to compute ResCode grouping")
+    calibration_data = ensure_c4(args.calibration_data)
     from transformers import AutoTokenizer
     from rescode.evaluation import get_calib_dataloder
     from rescode.merging.grouping_qwen import ExpertsGrouperForQwen2MoE
@@ -294,7 +342,7 @@ def prepare_cache(args, model_dir: Path, layers: list[int]) -> dict:
     dataloader = get_calib_dataloder(
         dataset="c4", tokenizer=tokenizer, max_block_size=args.calibration_seqlen,
         n_blocks_for_stat=args.calibration_blocks, batch_size=args.calibration_batch_size,
-        num_workers=0, seed=args.seed, data_path=str(args.calibration_data))
+        num_workers=0, seed=args.seed, data_path=str(calibration_data))
     grouper = ExpertsGrouperForQwen2MoE(
         config=model.config, similarity_base="rescode", start_layer=min(layers),
         cluster="hierarchical", linkage=args.linkage, descriptor_tokens="all")
@@ -308,7 +356,7 @@ def prepare_cache(args, model_dir: Path, layers: list[int]) -> dict:
     dataloader = get_calib_dataloder(
         dataset="c4", tokenizer=tokenizer, max_block_size=args.calibration_seqlen,
         n_blocks_for_stat=args.calibration_blocks, batch_size=args.calibration_batch_size,
-        num_workers=0, seed=args.seed, data_path=str(args.calibration_data))
+        num_workers=0, seed=args.seed, data_path=str(calibration_data))
     routed, _, _ = collect_projection_samples(
         model, dataloader, "qwen", layers,
         max_train=args.diagnostic_samples, max_heldout=0)
@@ -865,8 +913,8 @@ def arguments(argv=None):
                         help="optional separate ResCode saliency .pt cache")
     parser.add_argument("--routed-input-cache", type=Path,
                         help="optional collect_projection_samples train cache")
-    parser.add_argument("--calibration-data", type=Path,
-                        help="C4 JSON calibration data; required if no grouping cache")
+    parser.add_argument("--calibration-data", type=Path, default=DEFAULT_C4,
+                        help="C4 JSON path; the standard shard is downloaded if missing")
     parser.add_argument("--calibration-blocks", type=int, default=32)
     parser.add_argument("--calibration-seqlen", type=int, default=2048)
     parser.add_argument("--calibration-batch-size", type=int, default=2)

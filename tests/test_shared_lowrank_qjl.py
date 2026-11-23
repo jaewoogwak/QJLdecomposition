@@ -2,11 +2,14 @@
 
 import copy
 import csv
+import gzip
+import hashlib
 import json
 import math
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import torch
 import torch.nn as nn
@@ -14,7 +17,8 @@ import torch.nn.functional as F
 from safetensors.torch import save_file
 
 from scripts.QJL.run_shared_lowrank_qjl import (
-    analyze_or_compress, arguments, groups_from_descriptors, groups_from_labels,
+    C4_FILENAME, analyze_or_compress, arguments, ensure_c4,
+    groups_from_descriptors, groups_from_labels,
     install_checkpoint, output_metrics, rank_parts, routed_or_synthetic,
     saliency_average, svd_factors,
 )
@@ -64,6 +68,28 @@ class ToyModel(nn.Module):
 
 
 class SharedLowrankQJLTests(unittest.TestCase):
+    def test_c4_download_verify_and_reuse(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            compressed = root / "source.gz"
+            with gzip.open(compressed, "wb") as handle:
+                handle.write(b'{"text":"calibration example"}\n')
+            digest = hashlib.sha256(compressed.read_bytes()).hexdigest()
+            target = root / "data" / C4_FILENAME
+            with patch("huggingface_hub.hf_hub_download", return_value=str(compressed)) as download:
+                with patch("scripts.QJL.run_shared_lowrank_qjl.C4_SHA256", digest):
+                    self.assertEqual(ensure_c4(target), target.resolve())
+                    download.assert_called_once()
+            self.assertEqual(json.loads(target.read_text().splitlines()[0])["text"],
+                             "calibration example")
+            with patch("huggingface_hub.hf_hub_download", side_effect=AssertionError("redownloaded")):
+                self.assertEqual(ensure_c4(target), target.resolve())
+            target.unlink()
+            with patch("huggingface_hub.hf_hub_download", return_value=str(compressed)):
+                with self.assertRaisesRegex(ValueError, "SHA256"):
+                    ensure_c4(target)
+            self.assertFalse(target.exists())
+
     def test_saliency_base_and_grouping(self):
         weights = {0: torch.full((2, 2), 1.0), 1: torch.full((2, 2), 3.0)}
         base = saliency_average(weights, torch.tensor([3.0, 1.0]), delta=1e-3)

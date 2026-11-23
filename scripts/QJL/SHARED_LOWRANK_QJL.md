@@ -15,12 +15,16 @@ containing `group_state_dict` and `saliency_state_dict`, keyed by
 over deterministic Gaussian diagnostic inputs, which are explicitly marked
 `synthetic` in the output.
 
-If no grouping cache is available, pass `--calibration-data PATH` to compute
-output descriptors, saliency, singleton experts, and groups with the existing
-ResCode Qwen grouper. This loads the original HF model and writes
-`grouping_cache.pt` for later modes. The default singleton ratio is 0.15 and the
-default group count is 30. An existing label cache determines the grouping; the
-CLI group settings apply when generating new labels.
+If no grouping cache is available, the script uses
+`rescode/data/c4-train.00000-of-01024.json` by default. If that file is missing,
+it downloads the English C4 shard from `allenai/c4`, verifies its compressed
+SHA256, and decompresses it atomically before calibration. `--calibration-data`
+can select another existing JSON file. The script computes output descriptors,
+saliency, singleton experts, and groups with the existing ResCode Qwen grouper.
+This loads the original HF model and writes `grouping_cache.pt` for later modes.
+The default singleton ratio is 0.15 and the default group count is 30. An
+existing label cache determines the grouping; the CLI group settings apply when
+generating new labels.
 
 ## Weight-only analysis
 
@@ -28,9 +32,8 @@ CLI group settings apply when generating new labels.
 .venv/bin/python scripts/QJL/run_shared_lowrank_qjl.py \
   --mode analyze \
   --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
-  --grouping-cache /path/to/grouping_cache.pt \
   --layers all --projections gate,up,down \
-  --ranks 0,32,64,128,256,512 --qjl-d 4096 \
+  --ranks 0,64,128,256 --qjl-d 4096 \
   --output-dir results/shared_lowrank_qjl/analysis
 ```
 
@@ -43,9 +46,9 @@ that covers those experts. `analyze` does not write checkpoints.
 .venv/bin/python scripts/QJL/run_shared_lowrank_qjl.py \
   --mode compress \
   --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
-  --grouping-cache /path/to/grouping_cache.pt \
+  --grouping-cache results/shared_lowrank_qjl/analysis/grouping_cache.pt \
   --layers all --projections gate,up,down \
-  --ranks 0,32,64,128,256,512 --qjl-d 4096 \
+  --ranks 0,64,128,256 --qjl-d 4096 \
   --output-dir results/shared_lowrank_qjl/compressed
 ```
 
