@@ -13,15 +13,17 @@ shift
 
 case "$action" in
   test)
-    CUDA_VISIBLE_DEVICES="" "$python_bin" -m unittest tests/test_grouping_gsmoe.py -v "$@"
+    CUDA_VISIBLE_DEVICES="" "$python_bin" -m unittest \
+      tests/test_grouping_gsmoe.py tests/test_grouping_gsmoe_heldout.py -v "$@"
     ;;
   smoke)
-    "$python_bin" scripts/QJL/run_grouping_gsmoe.py --mode analyze \
+    CUDA_VISIBLE_DEVICES="" "$python_bin" scripts/QJL/run_grouping_gsmoe.py --mode compress \
       --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
-      --calibration-cache results/shared_lowrank_qjl/full/analysis/grouping_cache.pt \
       --layers 12 --max-experts 2 --num-groups 1 --probe-rank 4 \
       --shared-ranks 4 --residual-ranks 0,2 --grouping-restarts 1 \
-      --grouping-iterations 2 --output-dir results/grouping_gsmoe/smoke "$@"
+      --grouping-iterations 2 --calibration-blocks 4 \
+      --calibration-seqlen 256 --calibration-batch-size 2 \
+      --calibration-samples 8 --output-dir results/grouping_gsmoe/full_cov_smoke "$@"
     ;;
   analyze|compress|eval)
     "$python_bin" scripts/QJL/run_grouping_gsmoe.py --mode "$action" "$@"

@@ -1,0 +1,34 @@
+{
+  "train_file": "/home/jaewoo/QJLdecomposition/rescode/data/c4-train.00000-of-01024.json",
+  "train_sha256": "de0723fdb55d5b9a5e4e3f1cd7683bac68f8f235314ae423adb1f87ab5926d16",
+  "train_documents": 356317,
+  "heldout_file": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov_smoke/heldout_data/c4-train.00001-of-01024.json",
+  "heldout_sha256": "fc1de17dcf50846abc7fa2f3ef3973b2471e93c545b7cffa682b4aa791eeb9fe",
+  "heldout_documents": 356318,
+  "heldout_compressed_file": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov_smoke/heldout_data/en/c4-train.00001-of-01024.json.gz",
+  "heldout_compressed_sha256": "b945059cd1a343cabe311881b7840a6f0363f570e745a0eff0e687e266f6b55d",
+  "heldout_revision": "1588ec454efa1a09f29cd18ddd04fe05fc8653a2",
+  "exact_text_overlap_documents": 0,
+  "selected_heldout_file": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov_smoke/heldout_data/c4-train.00001-of-01024.json",
+  "selected_heldout_sha256": "fc1de17dcf50846abc7fa2f3ef3973b2471e93c545b7cffa682b4aa791eeb9fe",
+  "selected_heldout_documents": 356318,
+  "verified_disjoint": true,
+  "seed": 31415,
+  "layers": [
+    12
+  ],
+  "expert_count": 60,
+  "calibration_blocks": 4,
+  "calibration_seqlen": 256,
+  "calibration_batch_size": 2,
+  "sample_cap": 8,
+  "heldout_cache": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov_smoke/heldout_activation_cache_shard00001",
+  "routed_counts": {
+    "12": {
+      "minimum_samples": 8,
+      "maximum_samples": 8,
+      "minimum_routes": 28.0,
+      "maximum_routes": 220.0
+    }
+  }
+}

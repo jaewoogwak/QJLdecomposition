@@ -1,0 +1,175 @@
+{
+  "config": {
+    "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+    "model_path": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+    "mode": "compress",
+    "layers": [
+      12
+    ],
+    "experts": [
+      0,
+      1
+    ],
+    "num_groups": 1,
+    "shared_ranks": [
+      4
+    ],
+    "residual_ranks": [
+      0,
+      2
+    ],
+    "probe_rank": 4,
+    "seed": 42,
+    "down_beta": 1.0,
+    "covariance_ridge": 0.0001,
+    "calibration_cache": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov_smoke/calibration",
+    "calibration_method": "all-routed-tokens-route-probability-weighted-v1",
+    "calibration_dataset": "/home/jaewoo/QJLdecomposition/rescode/data/c4-train.00000-of-01024.json",
+    "calibration_dataset_sha256": "de0723fdb55d5b9a5e4e3f1cd7683bac68f8f235314ae423adb1f87ab5926d16",
+    "calibration_signature": "2609ffd44d6266ff90b1b8cc880e25947d2dd1279f7c58f945aab3d84143caa7",
+    "calibration_sample_cap": 8,
+    "frequency_source": "full_routing_count",
+    "grouping_cache_dir": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov_smoke/grouping"
+  },
+  "projection_summary": [
+    {
+      "projection": "down",
+      "shared_rank": 4,
+      "residual_rank": 0,
+      "expert_count": 2,
+      "mean_shared_rho": 0.9976101757136301,
+      "pooled_shared_rho": 0.9976098009436364,
+      "mean_oracle_tail_rho": 0.9976101757136301,
+      "pooled_oracle_tail_rho": 0.9976098009436364,
+      "pooled_stored_tail_rho": 0.9976098009436364,
+      "pooled_oracle_uv_energy_over_residual": 0.0,
+      "mean_output_relative_l2": 0.7284835892648123,
+      "pooled_output_relative_l2": 0.6275986964139558,
+      "mean_output_cosine": 0.5543628678993313
+    },
+    {
+      "projection": "down",
+      "shared_rank": 4,
+      "residual_rank": 2,
+      "expert_count": 2,
+      "mean_shared_rho": 0.9976101757136301,
+      "pooled_shared_rho": 0.9976098009436364,
+      "mean_oracle_tail_rho": 0.9908029489430485,
+      "pooled_oracle_tail_rho": 0.9908011513185041,
+      "pooled_stored_tail_rho": 0.9908011889426347,
+      "pooled_oracle_uv_energy_over_residual": 0.013603345173711659,
+      "mean_output_relative_l2": 0.7253485359368631,
+      "pooled_output_relative_l2": 0.624644877394303,
+      "mean_output_cosine": 0.5616350853424816
+    },
+    {
+      "projection": "gate",
+      "shared_rank": 4,
+      "residual_rank": 0,
+      "expert_count": 2,
+      "mean_shared_rho": 0.9978983700923476,
+      "pooled_shared_rho": 0.9979027727897676,
+      "mean_oracle_tail_rho": 0.9978983700923476,
+      "pooled_oracle_tail_rho": 0.9979027727897676,
+      "pooled_stored_tail_rho": 0.9979027727897676,
+      "pooled_oracle_uv_energy_over_residual": 0.0,
+      "mean_output_relative_l2": 0.6894247201873631,
+      "pooled_output_relative_l2": 0.6895453771236728,
+      "mean_output_cosine": 0.724238440058163
+    },
+    {
+      "projection": "gate",
+      "shared_rank": 4,
+      "residual_rank": 2,
+      "expert_count": 2,
+      "mean_shared_rho": 0.9978983700923476,
+      "pooled_shared_rho": 0.9979027727897676,
+      "mean_oracle_tail_rho": 0.9893828506170601,
+      "pooled_oracle_tail_rho": 0.9893919008114622,
+      "pooled_stored_tail_rho": 0.989391946686994,
+      "pooled_oracle_uv_energy_over_residual": 0.016984777720980174,
+      "mean_output_relative_l2": 0.6772209330999053,
+      "pooled_output_relative_l2": 0.6774304234343881,
+      "mean_output_cosine": 0.7349226592994313
+    },
+    {
+      "projection": "up",
+      "shared_rank": 4,
+      "residual_rank": 0,
+      "expert_count": 2,
+      "mean_shared_rho": 0.999558359893072,
+      "pooled_shared_rho": 0.9995685221947428,
+      "mean_oracle_tail_rho": 0.999558359893072,
+      "pooled_oracle_tail_rho": 0.9995685221947428,
+      "pooled_stored_tail_rho": 0.9995685221947428,
+      "pooled_oracle_uv_energy_over_residual": 0.0,
+      "mean_output_relative_l2": 0.7547741100465887,
+      "pooled_output_relative_l2": 0.7547795936459661,
+      "mean_output_cosine": 0.6571882793942472
+    },
+    {
+      "projection": "up",
+      "shared_rank": 4,
+      "residual_rank": 2,
+      "expert_count": 2,
+      "mean_shared_rho": 0.999558359893072,
+      "pooled_shared_rho": 0.9995685221947428,
+      "mean_oracle_tail_rho": 0.9939016954135823,
+      "pooled_oracle_tail_rho": 0.9939028895092298,
+      "pooled_stored_tail_rho": 0.9939029199105771,
+      "pooled_oracle_uv_energy_over_residual": 0.011304029559008959,
+      "mean_output_relative_l2": 0.7391780269395496,
+      "pooled_output_relative_l2": 0.7391780939467507,
+      "mean_output_cosine": 0.6735158632083675
+    }
+  ],
+  "swiglu_summary": [
+    {
+      "shared_rank": 4,
+      "residual_rank": 0,
+      "expert_count": 2,
+      "mean_relative_l2": 0.7432427874585565,
+      "pooled_relative_l2": 0.6429494478776382,
+      "mean_cosine": 0.5384962981384874
+    },
+    {
+      "shared_rank": 4,
+      "residual_rank": 2,
+      "expert_count": 2,
+      "mean_relative_l2": 0.7401135082913186,
+      "pooled_relative_l2": 0.6395268794241461,
+      "mean_cosine": 0.5376880800856266
+    }
+  ],
+  "checkpoints": [
+    {
+      "shared_rank": 4,
+      "residual_rank": 0,
+      "manifest": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov_smoke/checkpoints/shared_4/residual_0/manifest.json",
+      "checkpoint_bytes": 120862,
+      "shared_projection_bytes": 49152,
+      "expert_coefficient_bytes": 67584,
+      "residual_factor_bytes": 0,
+      "metadata_bytes": 4126,
+      "original_bf16_expert_bytes": 34603008,
+      "effective_bpw": 0.055885083747632576,
+      "bf16_compression_ratio": 286.3017987456769
+    },
+    {
+      "shared_rank": 4,
+      "residual_rank": 2,
+      "manifest": "/home/jaewoo/QJLdecomposition/results/grouping_gsmoe/full_cov_smoke/checkpoints/shared_4/residual_2/manifest.json",
+      "checkpoint_bytes": 206825,
+      "shared_projection_bytes": 49152,
+      "expert_coefficient_bytes": 67584,
+      "residual_factor_bytes": 82944,
+      "metadata_bytes": 7145,
+      "original_bf16_expert_bytes": 34603008,
+      "effective_bpw": 0.09563330448035037,
+      "bf16_compression_ratio": 167.30573189894838
+    }
+  ],
+  "group_size_distribution": {
+    "2": 1
+  }
+}

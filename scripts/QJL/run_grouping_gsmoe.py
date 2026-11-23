@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GS-MoE gain grouping + shared projections + expert residual SVD for Qwen1.5-MoE.
+"""Full routed-covariance GS-MoE grouping and residual SVD for Qwen1.5-MoE.
 
 This is an independent decomposition experiment. It uses no QJL kernels, pruning,
 or training. The reconstruction-gain objective and fixed-size medoid assignment
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
 import os
@@ -32,6 +33,27 @@ from scripts.QJL.run_shared_lowrank_qjl import (
 )
 
 FORMAT = "qwen15-gsmoe-shared-projection-residual-svd-v1"
+FULL_COVARIANCE_METHOD = "all-routed-tokens-route-probability-weighted-v1"
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _archive_stale(path: Path) -> Path:
+    """Keep an incompatible cache file rather than silently reusing or deleting it."""
+    suffix = 1
+    while True:
+        archived = path.with_name(f"{path.name}.stale-{suffix}")
+        if not archived.exists():
+            path.rename(archived)
+            print(f"[grouping-gsmoe] archived incompatible cache: {archived}", flush=True)
+            return archived
+        suffix += 1
 
 
 def _sym(matrix: torch.Tensor) -> torch.Tensor:
@@ -129,6 +151,51 @@ def down_projection_gain(y: torch.Tensor, p: torch.Tensor) -> torch.Tensor:
     return (y @ p).square().sum() / max(1, y.shape[0])
 
 
+def input_projection_gain_cov(cov_x: torch.Tensor, weight: torch.Tensor,
+                              p: torch.Tensor, ridge: float = 1e-6) -> torch.Tensor:
+    """Same reconstruction gain, evaluated from the full routed covariance."""
+    gram = _sym(p.T @ cov_x @ p)
+    scale = gram.trace().clamp_min(1e-30) / max(1, p.shape[1])
+    gram = gram + ridge * scale * torch.eye(p.shape[1], device=p.device, dtype=p.dtype)
+    cross = p.T @ cov_x @ weight.T
+    return (cross * torch.linalg.solve(gram, cross)).sum()
+
+
+def down_projection_gain_cov(cov_y: torch.Tensor, p: torch.Tensor) -> torch.Tensor:
+    return torch.sum(p * (cov_y @ p))
+
+
+def accumulate_routed_covariance(input_sum: torch.Tensor, output_sum: torch.Tensor,
+                                  x: torch.Tensor, y: torch.Tensor,
+                                  probabilities: torch.Tensor) -> int:
+    """GS-MoE sqrt(route-weight) weighting, with FP32 Gram accumulation."""
+    if x.ndim != 2 or y.ndim != 2 or probabilities.ndim != 1 or \
+            x.shape[0] != y.shape[0] or x.shape[0] != probabilities.numel():
+        raise ValueError("routed covariance input shapes disagree")
+    if not x.shape[0]:
+        return 0
+    if bool((probabilities < 0).any()) or not bool(torch.isfinite(probabilities).all()):
+        raise ValueError("invalid routing probabilities")
+    weights = probabilities.float().sqrt()[:, None]
+    weighted_x = x.float() * weights
+    weighted_y = y.float() * weights
+    input_sum.add_(weighted_x.T @ weighted_x)
+    output_sum.add_(weighted_y.T @ weighted_y)
+    return x.shape[0]
+
+
+def normalized_routed_covariance(total: torch.Tensor, count: int) -> torch.Tensor:
+    if count <= 0:
+        raise ValueError("expert received no routed tokens")
+    cov = _sym(total / count)
+    _finite(cov, "routed covariance")
+    if not torch.allclose(cov, cov.T, atol=1e-5, rtol=1e-5):
+        raise AssertionError("routed covariance is not symmetric")
+    if bool((cov.diagonal() < -1e-6).any()):
+        raise AssertionError("routed covariance has negative diagonal")
+    return cov
+
+
 def reconstruction_gain(x: torch.Tensor, outputs: dict[str, torch.Tensor],
                         projections: dict[str, torch.Tensor], frequency: float,
                         down_beta: float = 1.0, ridge: float = 1e-6) -> torch.Tensor:
@@ -187,25 +254,21 @@ def shared_projection(cov_x: torch.Tensor, gram: torch.Tensor, rank: int,
     return p.contiguous()
 
 
-def group_projections(members: list[int], samples: dict, frequency: dict,
+def group_projections(members: list[int], covariance: dict, frequency: dict,
                       reader: WeightReader, layer: int, rank: int,
                       ridge: float, device: torch.device) -> dict[str, torch.Tensor]:
     """Refit P_g from pooled routed covariance and group weight/output Grams."""
-    hidden = next(iter(samples.values()))["gate"].shape[1]
+    hidden = next(iter(covariance.values()))["input"].shape[0]
     cov_x = torch.zeros(hidden, hidden, device=device, dtype=torch.float32)
     grams = {key: torch.zeros_like(cov_x) for key in PROJECTIONS}
     total = sum(max(float(frequency[i]), 1.0) for i in members)
     for expert in members:
         weight = max(float(frequency[expert]), 1.0) / total
-        x = samples[expert]["gate"].float().to(device)
-        middle = samples[expert]["down"].float().to(device)
-        cov_x.add_(_cov(x), alpha=weight)
+        cov_x.add_(covariance[expert]["input"].to(device), alpha=weight)
         for key in ("gate", "up"):
             w = reader.get(layer, expert, key).float().to(device)
             grams[key].add_(w.T @ w, alpha=weight)
-        w_down = reader.get(layer, expert, "down").float().to(device)
-        y_down = middle @ w_down.T
-        grams["down"].add_(_cov(y_down), alpha=weight)
+        grams["down"].add_(covariance[expert]["down_output"].to(device), alpha=weight)
     return {key: shared_projection(cov_x, grams[key], rank, key, ridge).cpu()
             for key in PROJECTIONS}
 
@@ -242,18 +305,8 @@ def _layer_value(store: dict, layer: int):
     return store[layer] if layer in store else store[str(layer)]
 
 
-def load_calibration_layer(path: Path, layer: int, experts: list[int]) -> tuple[dict, dict, str]:
-    """Load this experiment's layer file or an existing QJL routed-sample cache."""
-    if path.is_dir():
-        entry = torch.load(path / f"layer_{layer}.pt", map_location="cpu", weights_only=False)
-        raw = entry["samples"]
-        frequency = {int(k): float(v) for k, v in entry["frequency"].items()}
-        source = entry.get("frequency_source", "full_routing_count")
-    else:
-        entry = torch.load(path, map_location="cpu", weights_only=False)
-        raw = _layer_value(entry.get("routed_samples", entry).get("train",
-                            entry.get("routed_samples", entry)), layer)
-        frequency, source = {}, "capped_sample_count_proxy"
+def _sample_views(raw: dict, frequency: dict, source: str,
+                  layer: int, experts: list[int]) -> dict:
     result = {}
     for i in experts:
         gate_entry = raw["gate"].get(i, raw["gate"].get(str(i)))
@@ -270,6 +323,22 @@ def load_calibration_layer(path: Path, layer: int, experts: list[int]) -> tuple[
             frequency[i] = float(x.shape[0])
         if frequency.get(i, 0) <= 0:
             raise ValueError(f"nonpositive routing frequency for layer {layer} expert {i}")
+    return result
+
+
+def load_calibration_layer(path: Path, layer: int, experts: list[int]) -> tuple[dict, dict, str]:
+    """Load routed diagnostic samples; retained for the held-out collector."""
+    if path.is_dir():
+        entry = torch.load(path / f"layer_{layer}.pt", map_location="cpu", weights_only=False)
+        raw = entry["samples"]
+        frequency = {int(k): float(v) for k, v in entry["frequency"].items()}
+        source = entry.get("frequency_source", "full_routing_count")
+    else:
+        entry = torch.load(path, map_location="cpu", weights_only=False)
+        raw = _layer_value(entry.get("routed_samples", entry).get("train",
+                            entry.get("routed_samples", entry)), layer)
+        frequency, source = {}, "capped_sample_count_proxy"
+    result = _sample_views(raw, frequency, source, layer, experts)
     return result, frequency, source
 
 
@@ -331,39 +400,205 @@ def collect_calibration(args, model_dir: Path, layers: list[int], out: Path) -> 
     return out
 
 
-def get_calibration_path(args, model_dir: Path, layers: list[int]) -> Path:
+def full_covariance_metadata(args, model_dir: Path) -> dict:
+    dataset = ensure_c4(args.calibration_data).expanduser().resolve()
+    return {"method": FULL_COVARIANCE_METHOD,
+            "model": MODEL_ID,
+            "model_config_sha256": _sha256(model_dir / "config.json"),
+            "dataset": str(dataset), "dataset_sha256": _sha256(dataset),
+            "seed": args.seed, "blocks": args.calibration_blocks,
+            "sequence_length": args.calibration_seqlen,
+            "batch_size": args.calibration_batch_size,
+            "sample_cap": args.calibration_samples,
+            "router_weighting": "sqrt(normalized_topk_probability); divide_by_route_count"}
+
+
+def _calibration_signature(metadata: dict) -> str:
+    return hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()
+
+
+def _valid_calibration_cache(folder: Path, layer: int, metadata: dict) -> bool:
+    path = folder / f"layer_{layer}.pt"
+    sidecar = folder / f"layer_{layer}.meta.json"
+    if not path.is_file() or not sidecar.is_file():
+        return False
+    try:
+        recorded = json.loads(sidecar.read_text())
+        return recorded["metadata"] == metadata and recorded["layer"] == layer and \
+            recorded["file_bytes"] == path.stat().st_size
+    except (KeyError, ValueError, OSError):
+        return False
+
+
+def load_full_covariance_layer(folder: Path, layer: int, experts: list[int],
+                               metadata: dict) -> tuple[dict, dict, dict]:
+    if not _valid_calibration_cache(folder, layer, metadata):
+        raise ValueError(f"missing or incompatible full-covariance cache: {folder}/layer_{layer}.pt")
+    entry = torch.load(folder / f"layer_{layer}.pt", map_location="cpu", weights_only=False)
+    if entry.get("metadata") != metadata or entry.get("frequency_source") != "full_routing_count":
+        raise ValueError("full-covariance cache metadata mismatch")
+    statistics, frequency = {}, {}
+    for i in experts:
+        item = entry["full_covariance"][i]
+        count = int(item["token_count"])
+        if count <= 0 or float(entry["frequency"][i]) != count:
+            raise ValueError("full-covariance token count mismatch")
+        for key in ("input", "down_output"):
+            tensor = item[key]
+            if tensor.dtype != torch.float32 or tensor.ndim != 2 or \
+                    tensor.shape[0] != tensor.shape[1]:
+                raise ValueError("invalid full-covariance tensor shape or dtype")
+            _finite(tensor, "cached routed covariance")
+            if not torch.allclose(tensor, tensor.T, atol=1e-5, rtol=1e-5):
+                raise ValueError("cached routed covariance is asymmetric")
+        statistics[i] = item
+        frequency[i] = float(count)
+    samples = _sample_views(entry["samples"], frequency, "full_routing_count",
+                            layer, experts)
+    return statistics, frequency, samples
+
+
+@torch.no_grad()
+def collect_full_covariance_calibration(args, model_dir: Path, layers: list[int],
+                                        out: Path, metadata: dict) -> Path:
+    """Use every routed token; process layers separately to bound GPU memory."""
+    from transformers import AutoTokenizer
+    from rescode.evaluation import get_calib_dataloder
+    from rescode.merging.calib_stats import iter_moe_blocks, route, routing_config
+    from rescode.qjl.calibration import ProjectionSampleCollector
+
+    out.mkdir(parents=True, exist_ok=True)
+    model = _load_hf_model(model_dir, args.gpu_memory_fraction)
+    tokenizer = AutoTokenizer.from_pretrained(str(model_dir), trust_remote_code=True)
+    tokenizer.pad_token_id = tokenizer.eos_token_id
+    blocks = dict(iter_moe_blocks(model, "qwen"))
+    top_k, norm = routing_config(model, "qwen")
+    previous_tf32 = torch.backends.cuda.matmul.allow_tf32
+    torch.backends.cuda.matmul.allow_tf32 = False
+    try:
+        model.eval()
+        for layer in layers:
+            block = blocks[layer]
+            n = len(block.experts)
+            hidden = int(model.config.hidden_size)
+            device = next(block.parameters()).device
+            input_sum = torch.zeros(n, hidden, hidden, dtype=torch.float32, device=device)
+            output_sum = torch.zeros_like(input_sum)
+            counts = [0] * n
+            collector = ProjectionSampleCollector("qwen", [layer],
+                                                  max_train=args.calibration_samples,
+                                                  max_heldout=0)
+
+            def hook(module, inputs, _output):
+                flat = inputs[0].reshape(-1, hidden)
+                selected, routed_weights = route(module, flat, "qwen", top_k, norm)
+                # GS-MoE casts probabilities to the model activation dtype.
+                routed_weights = routed_weights.to(flat.dtype).float()
+                for i, expert in enumerate(module.experts):
+                    token, slot = torch.where(selected == i)
+                    if not token.numel():
+                        continue
+                    x = flat.index_select(0, token)
+                    y = expert(x)
+                    counts[i] += accumulate_routed_covariance(
+                        input_sum[i], output_sum[i], x, y,
+                        routed_weights[token, slot])
+                collector.capture(layer, module, inputs[0], selected, routed_weights)
+
+            handle = block.register_forward_hook(hook)
+            try:
+                loader = get_calib_dataloder(
+                    dataset="c4", tokenizer=tokenizer,
+                    max_block_size=args.calibration_seqlen,
+                    n_blocks_for_stat=args.calibration_blocks,
+                    batch_size=args.calibration_batch_size,
+                    num_workers=0, seed=args.seed, data_path=metadata["dataset"])
+                for batch in loader:
+                    model(**{k: v.to(next(model.parameters()).device)
+                             for k, v in batch.items() if k != "labels"})
+            finally:
+                handle.remove()
+            train, _, _ = collector.result()
+            samples = _layer_value(train, layer)
+            full_covariance = {}
+            for i in range(n):
+                if i not in samples["gate"] or i not in samples["down"]:
+                    raise ValueError(f"no diagnostic samples for layer {layer} expert {i}")
+                if samples["gate"][i][0].shape[0] > args.calibration_samples:
+                    raise AssertionError("diagnostic sample cap exceeded")
+                full_covariance[i] = {
+                    "input": normalized_routed_covariance(input_sum[i], counts[i]).cpu(),
+                    "down_output": normalized_routed_covariance(output_sum[i], counts[i]).cpu(),
+                    "token_count": counts[i]}
+            path = out / f"layer_{layer}.pt"
+            torch.save({"samples": samples, "frequency": dict(enumerate(counts)),
+                        "frequency_source": "full_routing_count",
+                        "full_covariance": full_covariance, "metadata": metadata,
+                        "calibration_blocks": args.calibration_blocks,
+                        "sample_cap": args.calibration_samples}, path)
+            (out / f"layer_{layer}.meta.json").write_text(json.dumps(
+                {"layer": layer, "metadata": metadata,
+                 "file_bytes": path.stat().st_size}, indent=2) + "\n")
+            print(f"[grouping-gsmoe] full covariance layer {layer}: "
+                  f"route counts {min(counts)}..{max(counts)}, "
+                  f"diagnostic sample cap {args.calibration_samples}", flush=True)
+            del input_sum, output_sum, collector, full_covariance, samples
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+    finally:
+        torch.backends.cuda.matmul.allow_tf32 = previous_tf32
+        del model
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    return out
+
+
+def get_calibration_path(args, model_dir: Path, layers: list[int]) -> tuple[Path, dict]:
+    metadata = full_covariance_metadata(args, model_dir)
+    default = args.output_dir.expanduser().resolve() / "calibration"
     if args.calibration_cache:
-        path = args.calibration_cache.expanduser().resolve()
-        if not path.exists():
-            raise FileNotFoundError(path)
-        return path
-    path = args.output_dir.expanduser().resolve() / "calibration"
-    if all((path / f"layer_{layer}.pt").is_file() for layer in layers):
-        return path
-    return collect_calibration(args, model_dir, layers, path)
+        explicit = args.calibration_cache.expanduser().resolve()
+        if all(_valid_calibration_cache(explicit, layer, metadata) for layer in layers):
+            return explicit, metadata
+        print(f"[grouping-gsmoe] incompatible explicit calibration cache {explicit}; "
+              f"collecting into {default}", flush=True)
+    missing = []
+    for layer in layers:
+        if _valid_calibration_cache(default, layer, metadata):
+            continue
+        for suffix in (".pt", ".meta.json"):
+            stale = default / f"layer_{layer}{suffix}"
+            if stale.exists():
+                _archive_stale(stale)
+        missing.append(layer)
+    if missing:
+        collect_full_covariance_calibration(args, model_dir, missing, default, metadata)
+    return default, metadata
 
 
-def make_grouping(layer: int, experts: list[int], samples: dict,
+def make_grouping(layer: int, experts: list[int], covariance: dict,
                   frequency: dict, reader: WeightReader, args,
                   device: torch.device) -> tuple[list[list[int]], np.ndarray, dict]:
     """Singleton probes, GS-MoE J_i(P_j), normalized affinity, balanced medoids."""
     probes = {}
     for i in experts:
-        probes[i] = group_projections([i], samples, frequency, reader, layer,
+        probes[i] = group_projections([i], covariance, frequency, reader, layer,
                                       args.probe_rank, args.covariance_ridge, device)
     gains = torch.empty(len(experts), len(experts), dtype=torch.float64)
     for row, i in enumerate(experts):
-        x = samples[i]["gate"].float().to(device)
-        middle = samples[i]["down"].float().to(device)
-        outputs = {}
-        for key in PROJECTIONS:
-            w = reader.get(layer, i, key).float().to(device)
-            outputs[key] = (middle if key == "down" else x) @ w.T
+        cov_x = covariance[i]["input"].to(device)
+        cov_down = covariance[i]["down_output"].to(device)
+        weights = {key: reader.get(layer, i, key).float().to(device)
+                   for key in ("gate", "up")}
         for col, j in enumerate(experts):
             p = {key: probes[j][key].to(device) for key in PROJECTIONS}
-            gains[row, col] = reconstruction_gain(
-                x, outputs, p, frequency[i], args.down_beta,
-                args.covariance_ridge).double().cpu()
+            gain = frequency[i] * (
+                input_projection_gain_cov(cov_x, weights["up"], p["up"],
+                                          args.covariance_ridge)
+                + input_projection_gain_cov(cov_x, weights["gate"], p["gate"],
+                                            args.covariance_ridge)
+                + args.down_beta * down_projection_gain_cov(cov_down, p["down"]))
+            gains[row, col] = gain.double().cpu()
     distance, own = affinity_from_gains(gains)
     local_groups = balanced_kmedoids(distance, args.num_groups, args.seed + layer,
                                       args.grouping_restarts, args.grouping_iterations)
@@ -376,9 +611,10 @@ def make_grouping(layer: int, experts: list[int], samples: dict,
     return groups, distance, diagnostics
 
 
-def grouping_and_bases(layer: int, experts: list[int], samples: dict,
+def grouping_and_bases(layer: int, experts: list[int], covariance: dict,
                        frequency: dict, reader: WeightReader, args,
-                       device: torch.device) -> tuple[list[list[int]], dict, dict]:
+                       device: torch.device, calibration_signature: str,
+                       calibration_metadata: dict) -> tuple[list[list[int]], dict, dict]:
     """Reuse cached grouping and maximum-rank bases across analyze/compress runs."""
     source = args.grouping_cache_dir or args.output_dir / "grouping"
     source = source.expanduser().resolve()
@@ -386,19 +622,36 @@ def grouping_and_bases(layer: int, experts: list[int], samples: dict,
     required = {"layer": layer, "experts": experts, "num_groups": args.num_groups,
                 "probe_rank": args.probe_rank, "shared_rank": max(args.shared_ranks),
                 "seed": args.seed, "covariance_ridge": args.covariance_ridge,
-                "down_beta": args.down_beta}
+                "down_beta": args.down_beta,
+                "calibration_signature": calibration_signature,
+                "calibration_metadata": calibration_metadata,
+                "covariance_method": FULL_COVARIANCE_METHOD}
+    if args.grouping_cache_dir and not path.is_file():
+        source = (args.output_dir / "grouping").expanduser().resolve()
+        path = source / f"layer_{layer}.pt"
     if path.is_file():
         cached = torch.load(path, map_location="cpu", weights_only=False)
-        if cached["settings"] != required:
-            raise ValueError(f"grouping cache settings mismatch: {path}")
-        groups = cached["groups"]
-        validate_groups(groups, experts, args.num_groups)
-        return groups, cached["bases"], cached["diagnostics"]
-    if args.grouping_cache_dir:
-        raise FileNotFoundError(path)
+        if cached.get("settings") != required:
+            if args.grouping_cache_dir and source == args.grouping_cache_dir.expanduser().resolve():
+                print(f"[grouping-gsmoe] incompatible explicit grouping cache {path}; "
+                      "recomputing in output directory", flush=True)
+                source = (args.output_dir / "grouping").expanduser().resolve()
+                path = source / f"layer_{layer}.pt"
+                if path.is_file():
+                    local = torch.load(path, map_location="cpu", weights_only=False)
+                    if local.get("settings") == required:
+                        validate_groups(local["groups"], experts, args.num_groups)
+                        return local["groups"], local["bases"], local["diagnostics"]
+                    _archive_stale(path)
+            else:
+                _archive_stale(path)
+        else:
+            groups = cached["groups"]
+            validate_groups(groups, experts, args.num_groups)
+            return groups, cached["bases"], cached["diagnostics"]
     groups, distance, diagnostics = make_grouping(
-        layer, experts, samples, frequency, reader, args, device)
-    bases = {j: group_projections(group, samples, frequency, reader, layer,
+        layer, experts, covariance, frequency, reader, args, device)
+    bases = {j: group_projections(group, covariance, frequency, reader, layer,
                                   max(args.shared_ranks), args.covariance_ridge,
                                   device) for j, group in enumerate(groups)}
     source.mkdir(parents=True, exist_ok=True)
@@ -661,7 +914,12 @@ def _report(config: dict, projection_summary: list[dict],
              f"Layers: {config['layers']}; experts: {config['experts']}; "
              f"shared ranks: {config['shared_ranks']}; residual ranks: {config['residual_ranks']}.",
              f"Calibration: {config['calibration_cache']} "
-             f"(routing frequency: {config['frequency_source']}).", "",
+             f"(routing frequency: {config['frequency_source']}).",
+             f"Full covariance method: {config['calibration_method']}; "
+             f"dataset SHA-256: {config['calibration_dataset_sha256']}; "
+             f"diagnostic sample cap per expert: {config['calibration_sample_cap']}. "
+             "All routed tokens contribute to fitting covariance; saved samples "
+             "are used only for output diagnostics.", "",
              "Shared projection coefficients and bases are stored as BF16. The FP32 "
              "residual is defined after reconstructing those stored BF16 factors; "
              "the residual SVD oracle is measured before its factors are rounded to BF16. "
@@ -720,7 +978,8 @@ def analyze_or_compress(args) -> dict:
                           "cuda" if torch.cuda.is_available() else "cpu")
     out = args.output_dir.expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
-    calibration = get_calibration_path(args, model_dir, layers)
+    calibration, calibration_metadata = get_calibration_path(args, model_dir, layers)
+    calibration_signature = _calibration_signature(calibration_metadata)
     projection_rows, swiglu_rows, group_rows, routing_rows = [], [], [], []
     file_names = defaultdict(list)
     byte_totals = defaultdict(lambda: defaultdict(int))
@@ -729,17 +988,27 @@ def analyze_or_compress(args) -> dict:
     reader = WeightReader(model_dir)
     try:
         for layer in layers:
-            samples, frequency, source = load_calibration_layer(calibration, layer, experts)
+            covariance, frequency, samples = load_full_covariance_layer(
+                calibration, layer, experts, calibration_metadata)
+            source = "full_routing_count"
             frequency_sources.add(source)
             routing_rows.extend({"layer": layer, "expert": i,
                                  "routing_frequency": frequency[i],
+                                 "covariance_token_count": covariance[i]["token_count"],
                                  "calibration_samples": samples[i]["gate"].shape[0],
                                  "frequency_source": source} for i in experts)
             if samples[experts[0]]["gate"].shape[1] != hidden or \
                     samples[experts[0]]["down"].shape[1] != intermediate:
                 raise ValueError("calibration shape does not match Qwen1.5-MoE weights")
+            for i in experts:
+                if covariance[i]["input"].shape != (hidden, hidden) or \
+                        covariance[i]["down_output"].shape != (hidden, hidden):
+                    raise ValueError("full covariance shape does not match Qwen hidden size")
+                if covariance[i]["token_count"] < samples[i]["gate"].shape[0]:
+                    raise ValueError("full route count is smaller than diagnostic sample count")
             groups, bases, grouping_diagnostics = grouping_and_bases(
-                layer, experts, samples, frequency, reader, args, device)
+                layer, experts, covariance, frequency, reader, args, device,
+                calibration_signature, calibration_metadata)
             for group_id, members in enumerate(groups):
                 group_rows.append({"layer": layer, "group_id": group_id,
                                    "group_size": len(members),
@@ -762,7 +1031,7 @@ def analyze_or_compress(args) -> dict:
                     for expert in members:
                         x = samples[expert]["gate"].to(device=device, dtype=torch.bfloat16)
                         middle = samples[expert]["down"].to(device=device, dtype=torch.bfloat16)
-                        cov_x = _cov(x.float())
+                        cov_x = covariance[expert]["input"].to(device)
                         weights = {key: reader.get(layer, expert, key).to(device)
                                    for key in PROJECTIONS}
                         if sr == args.shared_ranks[0]:
@@ -850,7 +1119,7 @@ def analyze_or_compress(args) -> dict:
             print(f"[grouping-gsmoe] layer {layer}: {len(groups)} balanced groups; "
                   f"{len(args.shared_ranks)} shared ranks, {len(args.residual_ranks)} residual ranks",
                   flush=True)
-            del samples, bases
+            del samples, bases, covariance
             if device.type == "cuda":
                 torch.cuda.empty_cache()
     finally:
@@ -861,6 +1130,11 @@ def analyze_or_compress(args) -> dict:
               "probe_rank": args.probe_rank, "seed": args.seed,
               "down_beta": args.down_beta, "covariance_ridge": args.covariance_ridge,
               "calibration_cache": str(calibration),
+              "calibration_method": FULL_COVARIANCE_METHOD,
+              "calibration_dataset": calibration_metadata["dataset"],
+              "calibration_dataset_sha256": calibration_metadata["dataset_sha256"],
+              "calibration_signature": calibration_signature,
+              "calibration_sample_cap": args.calibration_samples,
               "frequency_source": ",".join(sorted(frequency_sources)),
               "grouping_cache_dir": str(args.grouping_cache_dir or out / "grouping")}
     checkpoints = []
@@ -975,7 +1249,7 @@ def arguments(argv=None):
     parser.add_argument("--down-beta", type=float, default=1.0)
     parser.add_argument("--covariance-ridge", type=float, default=1e-4)
     parser.add_argument("--calibration-cache", type=Path,
-                        help="layer-wise cache directory or QJL routed_samples .pt cache")
+                        help="compatible full-covariance layer cache directory")
     parser.add_argument("--grouping-cache-dir", type=Path,
                         help="reuse analyze-mode grouping and maximum-rank bases")
     parser.add_argument("--calibration-data", type=Path, default=DEFAULT_C4)
@@ -990,12 +1264,15 @@ def arguments(argv=None):
     parser.add_argument("--eval-batch-size", type=int, default=4)
     parser.add_argument("--checkpoint", type=Path)
     parser.add_argument("--output-dir", type=Path,
-                        default=ROOT / "results/grouping_gsmoe")
+                        default=ROOT / "results/grouping_gsmoe/full_cov")
     args = parser.parse_args(argv)
     args.shared_ranks = _rank_list(args.shared_ranks, allow_zero=False)
     args.residual_ranks = _rank_list(args.residual_ranks, allow_zero=True)
     if args.probe_rank < 1 or args.covariance_ridge <= 0 or args.down_beta < 0:
         parser.error("probe-rank and covariance-ridge must be positive; down-beta nonnegative")
+    if args.calibration_samples < 2 or args.calibration_blocks < 1 or \
+            args.calibration_seqlen < 1 or args.calibration_batch_size < 1:
+        parser.error("calibration sample cap must be >=2; blocks, length, batch size positive")
     return args
 
 

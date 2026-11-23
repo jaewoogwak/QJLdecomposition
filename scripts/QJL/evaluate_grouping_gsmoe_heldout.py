@@ -253,6 +253,9 @@ def _pooled(rows: list[dict]) -> tuple[float, float, int]:
 def _report(args, provenance: dict, projection_rows: list[dict],
             whole_rows: list[dict], max_diff: dict) -> str:
     layers_text = ", ".join(str(layer) for layer in args.layers)
+    focus_shared = 256 if 256 in args.shared_ranks else max(args.shared_ranks)
+    focus_residuals = ([rank for rank in (0, 64, 256) if rank in args.residual_ranks]
+                       if focus_shared == 256 else args.residual_ranks)
     lines = [f"# Held-out activation reconstruction: layers {layers_text}", "",
              "The same saved BF16 checkpoint factors are evaluated on train and "
              "held-out routed inputs. No grouping, projection, coefficient, or SVD "
@@ -267,37 +270,33 @@ def _report(args, provenance: dict, projection_rows: list[dict],
              "Pooled relative L2 is sqrt(sum squared output error / sum squared original "
              "output norm). Each table entry uses the original BF16 expert outputs as "
              "reference and the saved BF16 checkpoint factors for reconstruction.", "",
-             "## Layer-wise full SwiGLU output: shared rank 256", "",
+             f"## Layer-wise full SwiGLU output: shared rank {focus_shared}", "",
              "| Layer | Residual rank | Train pooled L2 | Held-out pooled L2 | "
              "Train mean cosine | Held-out mean cosine |",
              "|---:|---:|---:|---:|---:|---:|"]
     for layer in args.layers:
-        for rr in (0, 64, 256):
-            if rr not in args.residual_ranks or 256 not in args.shared_ranks:
-                continue
+        for rr in focus_residuals:
             train = [r for r in whole_rows if r["layer"] == layer and
-                     r["shared_rank"] == 256 and r["residual_rank"] == rr and
+                     r["shared_rank"] == focus_shared and r["residual_rank"] == rr and
                      r["split"] == "train"]
             held = [r for r in whole_rows if r["layer"] == layer and
-                    r["shared_rank"] == 256 and r["residual_rank"] == rr and
+                    r["shared_rank"] == focus_shared and r["residual_rank"] == rr and
                     r["split"] == "heldout"]
             t_l2, t_cos, _ = _pooled(train)
             h_l2, h_cos, _ = _pooled(held)
             lines.append(f"| {layer} | {rr} | {t_l2:.5f} | {h_l2:.5f} | "
                          f"{t_cos:.5f} | {h_cos:.5f} |")
-    lines += ["", "## Gate/Up/Down output: shared rank 256, by layer", "",
+    lines += ["", f"## Gate/Up/Down output: shared rank {focus_shared}, by layer", "",
               "| Layer | Projection | Residual rank | Train pooled L2 | Held-out pooled L2 |",
               "|---:|---|---:|---:|---:|"]
     for layer in args.layers:
         for key in PROJECTIONS:
-            for rr in (0, 64, 256):
-                if rr not in args.residual_ranks or 256 not in args.shared_ranks:
-                    continue
+            for rr in focus_residuals:
                 train = [r for r in projection_rows if r["layer"] == layer and
-                         r["projection"] == key and r["shared_rank"] == 256 and
+                         r["projection"] == key and r["shared_rank"] == focus_shared and
                          r["residual_rank"] == rr and r["split"] == "train"]
                 held = [r for r in projection_rows if r["layer"] == layer and
-                        r["projection"] == key and r["shared_rank"] == 256 and
+                        r["projection"] == key and r["shared_rank"] == focus_shared and
                         r["residual_rank"] == rr and r["split"] == "heldout"]
                 t_l2, _, _ = _pooled(train)
                 h_l2, _, _ = _pooled(held)
@@ -354,12 +353,16 @@ def _report(args, provenance: dict, projection_rows: list[dict],
         else:
             lines.append("Residual SVD does not improve pooled held-out full "
                          "SwiGLU error at residual rank 256.")
+    source_limit = (
+        "The full-covariance train cache records a source SHA-256 matching shard "
+        "00000, and the grouping metadata matches that cache. Individual train "
+        "document IDs were not recorded. "
+        if provenance.get("train_cache_source_verified") else
+        "The legacy train cache did not record document IDs or a source checksum; "
+        "its association with shard 00000 follows the original run's default. ")
     lines += ["", "## Limits", "",
-              "The train calibration cache did not record its selected document IDs "
-              "or a source checksum. Its association with shard 00000 follows the "
-              "original run's configured default. We verified exact disjointness of "
-              "the complete source-shard text sets, but cannot independently prove "
-              "the identity of each cached train document. "
+              source_limit + "We verified exact disjointness of the complete "
+              "source-shard text sets. "
               "C4 may still contain similar or overlapping passages across different "
               "documents. The comparisons cover only routed experts and samples from "
               "the selected layers, not full-model language evaluation.", ""]
@@ -371,7 +374,7 @@ def _verify_payload(payload: dict, grouping: dict, experts: list[int],
                     hidden: int, intermediate: int) -> None:
     if payload["groups"] != grouping["groups"]:
         raise AssertionError("checkpoint groups differ from train grouping cache")
-    validate_groups(payload["groups"], list(range(len(grouping["settings"]["experts"]))),
+    validate_groups(payload["groups"], grouping["settings"]["experts"],
                     len(payload["groups"]))
     if sorted(int(i) for i in payload["experts"]) != grouping["settings"]["experts"]:
         raise AssertionError("checkpoint expert IDs differ from train grouping cache")
@@ -435,6 +438,7 @@ def evaluate_saved_factors(args) -> dict:
     out = args.output_dir.expanduser().resolve()
     provenance_path = args.provenance or out / "data_provenance.json"
     provenance = json.loads(provenance_path.read_text())
+    train_source_verified = True
     if not provenance.get("verified_disjoint") or provenance["exact_text_overlap_documents"] < 0:
         raise ValueError("missing verified train/held-out data separation")
     train_cache = args.train_cache.expanduser().resolve()
@@ -489,8 +493,22 @@ def evaluate_saved_factors(args) -> dict:
                            heldout_cache / f"layer_{layer}.pt", grouping_path]
             cache_before = {str(path): sha256_file(path) for path in cache_paths}
             grouping = torch.load(grouping_path, map_location="cpu", weights_only=False)
-            validate_groups(grouping["groups"], list(range(int(config["num_experts"]))),
+            train_sidecar = train_cache / f"layer_{layer}.meta.json"
+            if train_sidecar.is_file():
+                train_metadata = json.loads(train_sidecar.read_text())["metadata"]
+                if train_metadata.get("dataset_sha256") != provenance["train_sha256"]:
+                    raise ValueError("train covariance cache and source shard hashes disagree")
+                if grouping["settings"].get("calibration_metadata") != train_metadata:
+                    raise ValueError("grouping was fitted from a different train covariance cache")
+            elif "full_cov" in train_cache.parts:
+                raise ValueError("full-covariance train cache lacks source provenance")
+            else:
+                train_source_verified = False
+            grouped_experts = grouping["settings"]["experts"]
+            validate_groups(grouping["groups"], grouped_experts,
                             len(grouping["groups"]))
+            if not set(experts).issubset(grouped_experts):
+                raise ValueError("requested experts are absent from checkpoint grouping")
             weights = {i: {key: reader.get(layer, i, key) for key in PROJECTIONS}
                        for i in experts}
             for sr in args.shared_ranks:
@@ -558,6 +576,7 @@ def evaluate_saved_factors(args) -> dict:
                 torch.cuda.empty_cache()
     finally:
         reader.close()
+    provenance["train_cache_source_verified"] = train_source_verified
     for name, difference in max_diff.items():
         if difference > args.train_reproduction_atol:
             raise AssertionError(f"train result not reproduced: {name} max diff {difference}")
@@ -584,7 +603,7 @@ def evaluate_saved_factors(args) -> dict:
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    root = ROOT / "results/grouping_gsmoe"
+    root = ROOT / "results/grouping_gsmoe/full_cov"
     parser.add_argument("--mode", choices=("collect", "evaluate"), required=True)
     parser.add_argument("--model-path", type=Path,
                         default=Path("/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat"))
@@ -603,7 +622,7 @@ def arguments(argv=None):
     parser.add_argument("--grouping-cache", type=Path, default=root / "grouping")
     parser.add_argument("--checkpoint-root", type=Path, default=root / "checkpoints")
     parser.add_argument("--train-results", type=Path,
-                        default=root / "analysis_layers_0_12_23")
+                        default=root / "analysis")
     parser.add_argument("--output-dir", type=Path,
                         default=root / "heldout_layers_0_12_23")
     parser.add_argument("--provenance", type=Path,

@@ -1,30 +1,22 @@
-# GS-MoE gain grouping + shared projection + residual SVD
+# GS-MoE grouping with full routed covariance
 
-This experiment targets `Qwen/Qwen1.5-MoE-A2.7B-Chat` on the `grouping-gsmoe` branch. It adapts the reconstruction-gain objective and fixed-size balanced K-medoids from `/home/jaewoo/GS-MoE/src/compression/get_shared_experts.py`, and the shared projection/coefficient equations from its `compress.py`. It does not modify or import GS-MoE. It does not run QJL, neuron pruning, or training.
+This independent Qwen1.5-MoE-A2.7B-Chat experiment uses GS-MoE reconstruction gain, balanced grouping, group shared projections, and expert residual SVD. It does not run QJL, pruning, or training. The new experiment root is `results/grouping_gsmoe/full_cov/`; earlier `results/grouping_gsmoe/` analyses and checkpoints remain separate.
 
-## Decomposition
+## Calibration and decomposition
 
-For Gate/Up, each group stores one input basis `P_g` and each expert stores `A_i`:
+For every original-router routed token of expert `i`, calibration accumulates FP32 matrices. As in `/home/jaewoo/GS-MoE/src/calibration.py` and its Qwen2 adapter, each routed activation and Down output is multiplied by the square root of its normalized top-k routing probability before forming the Gram matrix. Each sum is divided by the **uncapped routed token count** `N_i`:
 
-`W_i ≈ A_i P_gᵀ + U_i V_i`.
+`C_x,i = Σ_t q_it x_t x_tᵀ / N_i` and `C_down,i = Σ_t q_it y_down,it y_down,itᵀ / N_i`.
 
-For Down, each group stores one output basis `P_g` and each expert stores `B_i`:
+The expert routing frequency remains `N_i`. `--calibration-samples` limits only the saved routed Gate/Up and Down inputs used for output diagnostics. Grouping gain, final `P_g`, and Gate/Up coefficients use the full covariances. Gate/Up weight Grams, balanced K-medoids, and the residual SVD retain the existing equations. The reconstruction is `A_i P_gᵀ + U_i V_i` for Gate/Up and `P_g B_i + U_i V_i` for Down. All checkpoint factors are BF16; residual SVD runs in FP32 on the residual after stored BF16 shared factors have been reconstructed.
 
-`W_i ≈ P_g B_i + U_i V_i`.
+Calibration processes one target layer at a time, reusing one loaded model and deterministic C4 calibration blocks, so only one layer's covariance accumulators reside on the GPU. This repeats the model forward for each uncached layer. The layer cache contains diagnostic samples, full FP32 covariance matrices, uncapped route counts, method name, dataset path and SHA-256, model config SHA-256, and calibration settings. A sidecar records the layer file size and settings. Incompatible old sample-only caches or changed settings are archived with a `.stale-N` suffix before recollection; grouping caches with changed calibration signatures are also archived before recomputation. Cache files can be large (roughly 2 GiB per layer for 60 experts and 2048-dimensional input/output covariance).
 
-The `P_g` bases are refit from group-pooled routed calibration statistics after grouping. Gate/Up use the leading eigenspace of `sqrt(C_x) (Σ W_iᵀW_i) sqrt(C_x)`, mapped back through `C_x^{-1/2}` and QR. Down uses the leading eigenspace of `Σ Y_down,iᵀY_down,i`. Per-expert Gate/Up coefficients solve the covariance-weighted least-squares problem; Down uses `P_gᵀW_i`.
+`compress` automatically performs the same diagnostics as `analyze`, while saving every checkpoint. Under `full_cov/analysis/`, the CSV, JSON, graphs, and `REPORT.md` include shared residual norms, FP32 residual SVD energy and tail norms, BF16 Gate/Up/Down routed output errors, full SwiGLU output errors, actual checkpoint bytes, effective expert-only bits/weight, and BF16 compression ratio. Summary rows distinguish expert means from pooled squared-norm ratios. The original router, shared expert, shared-expert gate, top-k routing, and SwiGLU remain in the HF model used for checkpoint evaluation.
 
-The FP32 residual is computed **after reconstructing the stored BF16 shared basis and coefficient**. Its FP32 SVD is sliced at each residual rank. Residual rank 0 stores no `U_i,V_i` and is the shared projection only baseline. Every checkpoint factor is BF16. Routed output diagnostics use the checkpoint's BF16 factor matmuls and the original BF16 expert weights; FP32 SVD energy remains a separate measurement. Checkpoint installation retains the original router, top-k selection, shared expert, shared expert gate, and Qwen SwiGLU operation.
+## Checks and small smoke test
 
-For singleton probe `P_j`, grouping uses the GS-MoE gain
-
-`J_i(P_j) = f_i [J_up,i(P_j) + J_gate,i(P_j) + β J_down,i(P_j)]`,
-
-where `f_i` is the routed token count. Input projection gain is `tr((Pᵀ C_i P)⁻¹ Pᵀ C_i W_iᵀ W_i C_i P)` and Down gain is `tr(Pᵀ A_i P)` with `A_i=Y_down,iᵀY_down,i/N_i`. The distance is `D_ij = 1 - clamp(J_i(P_j)/J_i(P_i), 0, 1)`. Fixed-size Hungarian assignment and medoid updates create balanced groups. The default 60 experts / 30 groups produces exactly two experts per group. `β=1` follows GS-MoE's default. A relative covariance ridge of `1e-4` stabilizes the empirical covariance, which can be rank-deficient with capped calibration samples; this is configurable.
-
-## Setup and quick checks
-
-Run from `/home/jaewoo/QJLdecomposition` with the repository `.venv` active. The script needs the existing repo dependencies plus `scipy` and `matplotlib`.
+Run from `/home/jaewoo/QJLdecomposition`:
 
 ```bash
 git switch grouping-gsmoe
@@ -32,84 +24,79 @@ bash scripts/QJL/run_grouping_gsmoe.sh test
 bash scripts/QJL/run_grouping_gsmoe.sh smoke
 ```
 
-The smoke command analyzes Layer 12, Expert 0–1, one group, shared rank 4, and residual ranks 0/2. It uses the existing routed activation cache at `results/shared_lowrank_qjl/full/analysis/grouping_cache.pt`; pass `--calibration-cache` with another file or directory if needed. The QJL cache has capped samples, so its `routing_frequency` is a sample-count proxy. A full study should use the fresh calibration collected by this script.
+The smoke command collects full routed covariance for Layer 12 using four short C4 calibration blocks, then compresses Experts 0–1 with shared rank 4 and residual ranks 0/2. It writes to `results/grouping_gsmoe/full_cov_smoke/`. Its small sample setting checks mechanics, not model quality.
 
-## Full analyze → compress → eval
+On the current instance, the 10 toy/held-out tests passed. The real Layer 12 compress smoke completed: the 60 experts accumulated 24–116 routed tokens each while only eight diagnostic inputs per expert were saved; selected Experts 0/1 accumulated 61/62 tokens. Two BF16 checkpoints and 12 projection-diagnostic rows were written. A separate C4 shard `00001` smoke evaluation on the same saved factors reproduced the compress Train metrics with maximum absolute difference 0. The two-expert, rank-4 SwiGLU pooled Relative L2 was 0.64295 (Train) versus 0.99914 (Held-out) at residual rank 0, and 0.63953 versus 1.00000 at residual rank 2. These tiny ranks are for code validation only. The full 24-layer compress and full lm-eval were not run for this implementation.
 
-**These commands are for manual execution.** `analyze` and `compress` run the full 24-layer/60-expert decomposition; `eval` runs full ARC-Easy and ARC-Challenge when `--eval-limit 0`.
+## A. Full 24-layer compress with automatic diagnostics
+
+This is a **manual, large run**. It collects new full-covariance caches into `full_cov/calibration/`, computes grouping/bases into `full_cov/grouping/`, saves 15 checkpoint combinations under `full_cov/checkpoints/`, and writes diagnostics to `full_cov/analysis/`.
+
+Check available storage before starting. At 60 experts and hidden size 2048, the 24-layer FP32 covariance cache is about 45 GiB before metadata and diagnostic samples. A previous 15-combination checkpoint sweep occupied about 84 GiB. Plan for at least 130 GiB of free space plus a safety margin, or place `results/grouping_gsmoe/full_cov/` on a larger volume. Keep earlier results separate.
 
 ```bash
 cd /home/jaewoo/QJLdecomposition
-
-bash scripts/QJL/run_grouping_gsmoe.sh analyze \
-  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
-  --layers all --num-groups 30 --probe-rank 64 \
-  --shared-ranks 64,128,256 --residual-ranks 0,32,64,128,256 \
-  --calibration-samples 256 --calibration-blocks 32 \
-  --output-dir results/grouping_gsmoe
-
 bash scripts/QJL/run_grouping_gsmoe.sh compress \
   --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
   --layers all --num-groups 30 --probe-rank 64 \
   --shared-ranks 64,128,256 --residual-ranks 0,32,64,128,256 \
-  --output-dir results/grouping_gsmoe
-
-bash scripts/QJL/run_grouping_gsmoe.sh eval \
-  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
-  --checkpoint results/grouping_gsmoe/checkpoints/shared_128/residual_64/manifest.json \
-  --tasks arc_easy,arc_challenge --eval-limit 0 \
-  --output-dir results/grouping_gsmoe
-```
-
-Repeat `eval` with each `shared_{rank}/residual_{rank}` manifest. Its output is saved independently under `results/grouping_gsmoe/eval/shared_{rank}/residual_{rank}/`. `--tasks` accepts the lm-eval task names supported by `rescode.evaluation`; `--eval-limit 0` means no limit. No full evaluation runs automatically from `analyze` or `compress`.
-
-`analyze` automatically downloads the standard C4 JSON shard if absent, runs one calibration pass through the original Qwen model, and saves routed Gate/Up inputs, Down intermediate activations, and **uncapped routing counts** in `results/grouping_gsmoe/calibration/layer_*.pt`. The calibration pass and decomposition operate layer-wise after collection. `compress` reuses these layer files and `results/grouping_gsmoe/grouping/layer_*.pt`, which contain the balanced labels and maximum-rank group bases. To use an existing routed-sample cache, pass `--calibration-cache PATH`; to reuse grouping from another output root, pass `--grouping-cache-dir PATH`. The latter checks the layer, expert selection, ranks, grouping settings, and seed before reuse. Keep the same calibration data when reusing it.
-
-The full `compress` sweep writes 15 independent checkpoints and can consume substantial disk space. Each checkpoint includes the shared `P_g` once per group, expert coefficients, and residual factors. The original HF backbone, router, and shared expert are loaded separately for evaluation and are excluded from expert-only bpw.
-
-## Outputs and metrics
-
-`results/grouping_gsmoe/analysis/` contains `per_projection.csv`, `per_expert_swiglu.csv`, `groups.csv`, `routing_frequency.csv`, projection and SwiGLU summary CSVs, `summary.json`, `REPORT.md`, and graphs. `compress` adds `checkpoint_storage.csv` and manifests. Per-expert rows distinguish FP32 oracle SVD energy from stored BF16 factor error. Summary CSVs contain **expert means** and **pooled squared-norm** metrics separately. Gate/Up/Down outputs use each expert's routed inputs; full SwiGLU output runs the reconstructed Gate, Up, and Down paths together on routed hidden states.
-
-Calibration-aware projection optimizes routed output reconstruction. Its unweighted Frobenius residual norm `||R||_F/||W||_F` can therefore exceed 1 even when routed output error improves.
-
-## Checks run during implementation
-
-- Toy tests: reconstruction gain matches the direct GS-MoE trace formula; balanced assignment has no duplicates; shared coefficient reconstruction and rank-0/full-rank residual boundaries; FP32 SVD energy and monotone error; BF16 checkpoint save/reload; router/shared expert identity and finite SwiGLU output.
-- Real Qwen Layer 12 smoke: 2 experts, one group, shared rank 4, residual ranks 0/2. Both analyze and compress completed using the prior routed cache. Installing both checkpoints in the original Qwen model preserved router output exactly and produced finite `(1, 2, 2048)` block outputs.
-- Fresh C4 calibration smoke: Layer 12, 4 blocks × 256 tokens, sample cap 8. The cache recorded 62 actual routed tokens for each selected expert while retaining 8 diagnostic samples, and analyze completed with `frequency_source=full_routing_count`.
-
-The full 24-layer/60-expert analyze, compress sweep, and lm-eval are intentionally left for manual execution. The full sweep has not been timed or memory-profiled. The prior QJL cache is useful for smoke tests but has only capped routed samples and sample-count proxy frequencies; collect fresh calibration for reported full-scale results.
-
-## Held-out routed-output check
-
-`evaluate_grouping_gsmoe_heldout.py` collects routed inputs from C4 train shard `00001` with the original Qwen router, then evaluates the **same saved BF16 checkpoint factors** on the existing calibration inputs from shard `00000` and on the new inputs. Evaluation reads the checkpoint, grouping cache, train activation cache, and held-out activation cache; it does not fit or alter grouping, shared bases, coefficients, or residual SVD. It does not run QJL or lm-eval.
-
-Run from `/home/jaewoo/QJLdecomposition` after the `shared_{64,128,256}/residual_{0,32,64,128,256}/layer_{0,12,23}.pt` checkpoint files have been created. The collection command downloads C4 shard `00001` if needed, checks its pinned SHA-256, and compares exact text hashes against the complete train shard. It saves the raw held-out activations outside the tracked results directory.
-
-```bash
-python scripts/QJL/evaluate_grouping_gsmoe_heldout.py --mode collect \
-  --layers 0,12,23 --seed 31415 \
   --calibration-blocks 32 --calibration-seqlen 2048 \
   --calibration-batch-size 2 --calibration-samples 256 \
-  --min-heldout-samples 256
-
-python scripts/QJL/evaluate_grouping_gsmoe_heldout.py --mode evaluate \
-  --layers 0,12,23 --shared-ranks 64,128,256 \
-  --residual-ranks 0,32,64,128,256 \
-  --min-heldout-samples 256
+  --output-dir results/grouping_gsmoe/full_cov
 ```
 
-For a read-only evaluation smoke test after collection, run:
+Use `--mode analyze` through the same wrapper to generate diagnostics without checkpoint files. The full compress run already generates them.
+
+## B. Separate held-out routed-output evaluation
+
+After A, collect new C4 shard `00001` routed inputs once. The collection checks exact text-document overlap against training shard `00000` and saves activations outside Git. Held-out inputs are never used to fit grouping, shared projections, coefficients, or SVD. `evaluate` loads the saved BF16 checkpoints and compares the same factors on train and held-out inputs for Layers 0, 12, and 23.
 
 ```bash
-python scripts/QJL/evaluate_grouping_gsmoe_heldout.py --mode evaluate \
-  --layers 0 --max-experts 2 --shared-ranks 256 \
-  --residual-ranks 0,64,256 \
-  --provenance results/grouping_gsmoe/heldout_layers_0_12_23/data_provenance.json \
-  --output-dir results/grouping_gsmoe/heldout_smoke
+cd /home/jaewoo/QJLdecomposition
+.venv/bin/python scripts/QJL/evaluate_grouping_gsmoe_heldout.py \
+  --mode collect --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --layers 0,12,23 --seed 31415 --calibration-blocks 32 \
+  --calibration-seqlen 2048 --calibration-batch-size 2 \
+  --calibration-samples 256 --min-heldout-samples 256
+
+.venv/bin/python scripts/QJL/evaluate_grouping_gsmoe_heldout.py \
+  --mode evaluate --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --layers 0,12,23 --shared-ranks 64,128,256 \
+  --residual-ranks 0,32,64,128,256 --min-heldout-samples 256
 ```
 
-The full results are in `results/grouping_gsmoe/heldout_layers_0_12_23/`: `per_projection.csv`, `per_expert_swiglu.csv`, layer-wise `projection_summary.csv` and `swiglu_summary.csv`, paired `train_vs_heldout.csv`, `summary.json`, `data_provenance.json`, checkpoint/cache SHA-256 hashes in `factor_integrity.json`, and `REPORT.md`. Expert mean relative L2 and pooled relative L2 are reported separately. The pooled metric is `sqrt(sum(error squared norm) / sum(reference squared norm))`. `REPORT.md` focuses on shared rank 256 and residual ranks 0, 64, and 256; CSVs include the full rank sweep.
+Run `collect` only when the held-out cache is absent. `evaluate` is repeatable with the existing cache. Its output is `full_cov/heldout_layers_0_12_23/`, with `per_projection.csv`, `per_expert_swiglu.csv`, layer summaries, `train_vs_heldout.csv`, `summary.json`, factor/cache hashes, provenance, and `REPORT.md`. The full 24-layer compress must finish before the 15 rank combinations for these layers are available. Earlier held-out results under `results/grouping_gsmoe/heldout_layers_0_12_23/` describe the old 256-sample-fitted checkpoints, not this method.
 
-The train cache predates document-ID and source-checksum logging. Its association with shard `00000` follows the original run's default configuration. Complete source shards were checked for exact text-document overlap, but individual train-cache document identities cannot be proven independently, and similar passages may occur across shards. Reported errors measure routed output reconstruction on these C4 samples, not task accuracy or another data domain. The activation caches, raw C4 shard, and large checkpoint files are excluded from Git.
+## C. Full ARC-Easy and ARC-Challenge evaluation for every checkpoint
+
+This loop is for manual execution after A and B. `--eval-limit 0` evaluates every example in each task. Each rank combination writes independently to `full_cov/eval/shared_{rank}/residual_{rank}/`.
+
+```bash
+cd /home/jaewoo/QJLdecomposition
+for shared_rank in 64 128 256; do
+  for residual_rank in 0 32 64 128 256; do
+    bash scripts/QJL/run_grouping_gsmoe.sh eval \
+      --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+      --checkpoint "results/grouping_gsmoe/full_cov/checkpoints/shared_${shared_rank}/residual_${residual_rank}/manifest.json" \
+      --tasks arc_easy,arc_challenge --eval-limit 0 \
+      --output-dir results/grouping_gsmoe/full_cov
+  done
+done
+```
+
+## D. Evaluate one selected checkpoint
+
+Change the two rank variables to any pair produced by A. This command also uses the complete task sets; `--tasks` and `--eval-limit` can be changed for a smaller manual check.
+
+```bash
+cd /home/jaewoo/QJLdecomposition
+shared_rank=256
+residual_rank=64
+bash scripts/QJL/run_grouping_gsmoe.sh eval \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --checkpoint "results/grouping_gsmoe/full_cov/checkpoints/shared_${shared_rank}/residual_${residual_rank}/manifest.json" \
+  --tasks arc_easy,arc_challenge --eval-limit 0 \
+  --output-dir results/grouping_gsmoe/full_cov
+```
+
+The held-out Train cache does not record individual source document IDs; the shard comparison proves exact source text separation but cannot establish the identity of each older cached document. The routed-output checks do not measure task accuracy. The 24-layer compress and full lm-eval commands above are supplied for the user and are not run as part of the small implementation smoke test.
