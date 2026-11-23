@@ -80,3 +80,36 @@ Calibration-aware projection optimizes routed output reconstruction. Its unweigh
 - Fresh C4 calibration smoke: Layer 12, 4 blocks × 256 tokens, sample cap 8. The cache recorded 62 actual routed tokens for each selected expert while retaining 8 diagnostic samples, and analyze completed with `frequency_source=full_routing_count`.
 
 The full 24-layer/60-expert analyze, compress sweep, and lm-eval are intentionally left for manual execution. The full sweep has not been timed or memory-profiled. The prior QJL cache is useful for smoke tests but has only capped routed samples and sample-count proxy frequencies; collect fresh calibration for reported full-scale results.
+
+## Held-out routed-output check
+
+`evaluate_grouping_gsmoe_heldout.py` collects routed inputs from C4 train shard `00001` with the original Qwen router, then evaluates the **same saved BF16 checkpoint factors** on the existing calibration inputs from shard `00000` and on the new inputs. Evaluation reads the checkpoint, grouping cache, train activation cache, and held-out activation cache; it does not fit or alter grouping, shared bases, coefficients, or residual SVD. It does not run QJL or lm-eval.
+
+Run from `/home/jaewoo/QJLdecomposition` after the `shared_{64,128,256}/residual_{0,32,64,128,256}/layer_{0,12,23}.pt` checkpoint files have been created. The collection command downloads C4 shard `00001` if needed, checks its pinned SHA-256, and compares exact text hashes against the complete train shard. It saves the raw held-out activations outside the tracked results directory.
+
+```bash
+python scripts/QJL/evaluate_grouping_gsmoe_heldout.py --mode collect \
+  --layers 0,12,23 --seed 31415 \
+  --calibration-blocks 32 --calibration-seqlen 2048 \
+  --calibration-batch-size 2 --calibration-samples 256 \
+  --min-heldout-samples 256
+
+python scripts/QJL/evaluate_grouping_gsmoe_heldout.py --mode evaluate \
+  --layers 0,12,23 --shared-ranks 64,128,256 \
+  --residual-ranks 0,32,64,128,256 \
+  --min-heldout-samples 256
+```
+
+For a read-only evaluation smoke test after collection, run:
+
+```bash
+python scripts/QJL/evaluate_grouping_gsmoe_heldout.py --mode evaluate \
+  --layers 0 --max-experts 2 --shared-ranks 256 \
+  --residual-ranks 0,64,256 \
+  --provenance results/grouping_gsmoe/heldout_layers_0_12_23/data_provenance.json \
+  --output-dir results/grouping_gsmoe/heldout_smoke
+```
+
+The full results are in `results/grouping_gsmoe/heldout_layers_0_12_23/`: `per_projection.csv`, `per_expert_swiglu.csv`, layer-wise `projection_summary.csv` and `swiglu_summary.csv`, paired `train_vs_heldout.csv`, `summary.json`, `data_provenance.json`, checkpoint/cache SHA-256 hashes in `factor_integrity.json`, and `REPORT.md`. Expert mean relative L2 and pooled relative L2 are reported separately. The pooled metric is `sqrt(sum(error squared norm) / sum(reference squared norm))`. `REPORT.md` focuses on shared rank 256 and residual ranks 0, 64, and 256; CSVs include the full rank sweep.
+
+The train cache predates document-ID and source-checksum logging. Its association with shard `00000` follows the original run's default configuration. Complete source shards were checked for exact text-document overlap, but individual train-cache document identities cannot be proven independently, and similar passages may occur across shards. Reported errors measure routed output reconstruction on these C4 samples, not task accuracy or another data domain. The activation caches, raw C4 shard, and large checkpoint files are excluded from Git.
