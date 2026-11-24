@@ -33,7 +33,10 @@ ALL_TASKS = "winogrande,arc_easy,arc_challenge,boolq,hellaswag,mmlu,openbookqa,r
 def arguments(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--mode", required=True, choices=("compress", "eval"))
-    p.add_argument("--case", choices=("original", "A", "B"))
+    p.add_argument("--eval-variant", choices=("original", "base-only", "base-plus-lowrank"),
+                   help="Evaluation model: original BF16, shared QJL Base, or Base plus SVD residual")
+    p.add_argument("--case", dest="legacy_case", choices=("original", "A", "B"),
+                   help=argparse.SUPPRESS)
     p.add_argument("--model-path", type=Path,
                    default=Path("/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat"))
     p.add_argument("--layers", default="all")
@@ -53,10 +56,19 @@ def arguments(argv=None):
     p.add_argument("--gpu-memory-fraction", type=float, default=.94)
     p.add_argument("--resume", action="store_true")
     args = p.parse_args(argv)
-    if args.mode == "eval" and args.case is None:
-        p.error("--case is required in eval mode")
-    if args.mode == "compress" and args.case is not None:
-        p.error("compress creates the common Base and rank factor shards; omit --case")
+    legacy_variants = {"original": "original", "A": "base-only",
+                       "B": "base-plus-lowrank"}
+    if args.legacy_case is not None:
+        legacy = legacy_variants[args.legacy_case]
+        if args.eval_variant is not None and args.eval_variant != legacy:
+            p.error("--case and --eval-variant select different evaluation models")
+        args.eval_variant = legacy
+    if args.mode == "eval" and args.eval_variant is None:
+        p.error("--eval-variant is required in eval mode")
+    if args.mode == "compress" and args.eval_variant is not None:
+        p.error("compress creates the common Base and rank factor shards; omit --eval-variant")
+    args.case = {"original": "original", "base-only": "A",
+                 "base-plus-lowrank": "B"}.get(args.eval_variant)
     if (args.qjl_d_factor <= 0 or args.rank < 1 or args.row_chunk < 1
             or args.eval_limit < 0 or args.eval_batch_size < 1
             or not 0 < args.gpu_memory_fraction <= 1):
@@ -304,7 +316,8 @@ def main(argv=None):
     elapsed = time.perf_counter() - start
     if runtime is None:
         runtime = resident_bytes(model)
-    metrics = {"case": args.case, "source": str(source),
+    metrics = {"case": args.case, "eval_variant": args.eval_variant,
+               "source": str(source),
                "checkpoint_dir": str(checkpoint_dir) if config else None,
                "task": args.task, "eval_limit": args.eval_limit,
                "eval_batch_size": args.eval_batch_size, "backend": args.backend,

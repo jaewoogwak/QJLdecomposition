@@ -219,9 +219,9 @@ bash scripts/QJL/run_base_bundling.sh
 ```
 
 The script supports `MODEL_PATH`, `QJL_D_FACTOR`, `RANK`, `TASKS`,
-`EVAL_BATCH_SIZE`, `EVAL_LIMIT`, `LAYERS`, `OUTPUT_DIR`, and `CASES`.
-Defaults are D=2n, rank 512, batch 16, full ARC, and cases
-`original,A,B`. Set `TASKS` to
+`EVAL_BATCH_SIZE`, `EVAL_LIMIT`, `LAYERS`, `OUTPUT_DIR`, and `EVAL_VARIANTS`.
+Defaults are D=2n, rank 512, batch 16, full ARC, and evaluation variants
+`original,base-only,base-plus-lowrank`. Set `TASKS` to
 `winogrande,arc_easy,arc_challenge,boolq,hellaswag,mmlu,openbookqa,rte`
 for all eight benchmarks. Compression and evaluation can also be run
 separately; `--resume` skips completed layer shards:
@@ -232,17 +232,20 @@ separately; `--resume` skips completed layer shards:
   --layers all --qjl-d-factor 2 --rank 512 --resume \
   --output-dir results/base_bundling/pairwise_d2n_r512
 
-.venv/bin/python scripts/QJL/run_base_bundling.py --mode eval --case A \
+.venv/bin/python scripts/QJL/run_base_bundling.py \
+  --mode eval --eval-variant base-plus-lowrank \
   --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
   --output-dir results/base_bundling/pairwise_d2n_r512 \
   --backend triton --task arc_easy,arc_challenge \
   --eval-limit 0 --eval-batch-size 16
 ```
 
-Use `--case original` or `--case B` for the other evaluations. Checkpoint
-`base_layer_N.pt` stores pair maps, one packed sketch per pair, and individual
-norms. `rank_layer_N.pt` stores only BF16 factor matrices and is loaded only
-for B. This gives A and B identical Base tensors. Full singular spectra and
+Use `--eval-variant original` or `--eval-variant base-only` for the other
+evaluations. The older `--case original/A/B` and `CASES` names remain accepted.
+Result directories retain their original `original`, `A`, and `B` names.
+Checkpoint `base_layer_N.pt` stores pair maps, one packed sketch per pair,
+and individual norms. `rank_layer_N.pt` stores only BF16 factor matrices and
+is loaded only for B. This gives A and B identical Base tensors. Full singular spectra and
 per-expert metrics are stored separately as `spectrum_layer_N.npz` and
 `per_expert_layer_N.csv`; no exact residual matrix is checkpointed. The
 output directory also contains aggregate `per_expert.csv`, plots,
@@ -250,7 +253,7 @@ output directory also contains aggregate `per_expert.csv`, plots,
 `REPORT.md`, and each case's `eval_metrics.json` after evaluation.
 
 Unit tests: `.venv/bin/python -m pytest tests/test_base_bundle_lowrank.py
-tests/test_residual_bundle.py tests/test_residual_alpha.py -q` passed **14
+tests/test_residual_bundle.py tests/test_residual_alpha.py -q` passed **15
 tests** on the remote GPU, including Triton parity, unique sketch storage,
 and compatibility with the existing experiments. A layer-12 smoke run
 compressed all 180 routed matrices in that layer, wrote full spectra and

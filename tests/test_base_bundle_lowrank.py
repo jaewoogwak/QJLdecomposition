@@ -2,6 +2,8 @@
 
 import copy
 import json
+import sys
+from pathlib import Path
 
 import pytest
 import torch
@@ -12,6 +14,9 @@ from rescode.qjl.base_bundle_model import (FORMAT, compress_layer, install_layer
 from rescode.qjl.bundled_model import dense_qjl_base
 from rescode.qjl.codebook_model import bank_for
 from rescode.qjl.residual_bundle_model import validate_pairs
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/QJL"))
+from run_base_bundling import arguments
 
 
 class TinyExpert(nn.Module):
@@ -42,6 +47,19 @@ def config():
     return {"format": FORMAT, "layers": [0], "qjl_d_factor": 2., "rank": 4,
             "projection_seed": 7, "pairing_seed": 11, "bundle_seed": 13,
             "row_chunk": 4}
+
+
+def test_explicit_eval_variant_and_legacy_case_alias():
+    explicit = arguments(["--mode", "eval", "--eval-variant", "base-plus-lowrank"])
+    legacy = arguments(["--mode", "eval", "--case", "B"])
+    assert explicit.case == legacy.case == "B"
+    assert explicit.eval_variant == legacy.eval_variant == "base-plus-lowrank"
+    assert arguments(["--mode", "eval", "--eval-variant", "base-only"]).case == "A"
+    with pytest.raises(SystemExit):
+        arguments(["--mode", "eval"])
+    with pytest.raises(SystemExit):
+        arguments(["--mode", "eval", "--case", "A",
+                   "--eval-variant", "base-plus-lowrank"])
 
 
 @pytest.fixture(scope="module")

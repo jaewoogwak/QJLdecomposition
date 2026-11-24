@@ -10,7 +10,7 @@ TASKS="${TASKS:-arc_easy,arc_challenge}"
 EVAL_BATCH_SIZE="${EVAL_BATCH_SIZE:-16}"
 EVAL_LIMIT="${EVAL_LIMIT:-0}"
 LAYERS="${LAYERS:-all}"
-CASES="${CASES:-original,A,B}"
+EVAL_VARIANTS="${EVAL_VARIANTS:-${CASES:-original,base-only,base-plus-lowrank}}"
 OUTPUT_DIR="${OUTPUT_DIR:-results/base_bundling/pairwise_d2n_r512}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-$OUTPUT_DIR/checkpoint}"
 BACKEND="${BACKEND:-triton}"
@@ -26,15 +26,17 @@ mkdir -p "$OUTPUT_DIR"
     --bundle-seed "$BUNDLE_SEED" --checkpoint-dir "$CHECKPOINT_DIR" \
     --output-dir "$OUTPUT_DIR" 2>&1 | tee "$OUTPUT_DIR/compress.log"
 
-for case in ${CASES//,/ }; do
-    if [[ "$case" != original && "$case" != A && "$case" != B ]]; then
-        echo "invalid case: $case" >&2
-        exit 2
-    fi
-    mkdir -p "$OUTPUT_DIR/$case"
-    "$PYTHON" scripts/QJL/run_base_bundling.py --mode eval --case "$case" \
+for variant in ${EVAL_VARIANTS//,/ }; do
+    case "$variant" in
+        original) eval_variant=original; case_dir=original ;;
+        base-only|A) eval_variant=base-only; case_dir=A ;;
+        base-plus-lowrank|B) eval_variant=base-plus-lowrank; case_dir=B ;;
+        *) echo "invalid evaluation variant: $variant" >&2; exit 2 ;;
+    esac
+    mkdir -p "$OUTPUT_DIR/$case_dir"
+    "$PYTHON" scripts/QJL/run_base_bundling.py --mode eval --eval-variant "$eval_variant" \
         --model-path "$MODEL_PATH" --layers "$LAYERS" \
         --checkpoint-dir "$CHECKPOINT_DIR" --output-dir "$OUTPUT_DIR" \
         --backend "$BACKEND" --task "$TASKS" --eval-batch-size "$EVAL_BATCH_SIZE" \
-        --eval-limit "$EVAL_LIMIT" 2>&1 | tee "$OUTPUT_DIR/$case/eval.log"
+        --eval-limit "$EVAL_LIMIT" 2>&1 | tee "$OUTPUT_DIR/$case_dir/eval.log"
 done
