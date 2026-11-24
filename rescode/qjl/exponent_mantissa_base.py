@@ -43,11 +43,18 @@ def fit_row_beta(weight: torch.Tensor) -> torch.Tensor:
 
 
 @torch.no_grad()
-def encode_exponent_mantissa_base(weight: torch.Tensor, block_size: int = 4096) -> dict:
+def encode_exponent_mantissa_base(weight: torch.Tensor, block_size: int = 4096,
+                                  row_chunk: int | None = None) -> dict:
     """Pack original sign/exponent and store the fitted row beta in FP16."""
     if weight.dtype != torch.bfloat16 or weight.ndim != 2:
         raise ValueError("expected a BF16 matrix")
-    beta = fit_row_beta(weight).to(torch.float16).cpu()
+    if row_chunk is not None:
+        if row_chunk < 1:
+            raise ValueError("row_chunk must be positive")
+        beta = torch.cat([fit_row_beta(weight[start:start + row_chunk]).to(torch.float16).cpu()
+                          for start in range(0, weight.shape[0], row_chunk)])
+    else:
+        beta = fit_row_beta(weight).to(torch.float16).cpu()
     if not torch.isfinite(beta).all():
         raise OverflowError("row beta cannot be stored in FP16")
     raw = weight.contiguous().view(torch.uint16).cpu().numpy().astype(np.uint16, copy=False)
