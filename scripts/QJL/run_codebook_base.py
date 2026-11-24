@@ -4,6 +4,7 @@
 import argparse
 import csv
 import json
+import math
 import os
 import sys
 import time
@@ -19,7 +20,8 @@ from diagnose_codebook_base import aggregate, atomic_json, select
 from rescode.evaluation import evaluate_fewshot
 from rescode.merging.eval_summary import report_eval_summary
 from rescode.qjl.codebook_model import (compress_model, gpu_resident_breakdown,
-                                        load_checkpoint, save_checkpoint)
+                                        load_checkpoint, save_checkpoint,
+                                        scale_loaded_residual_norms)
 
 MODEL = "Qwen/Qwen1.5-MoE-A2.7B-Chat"
 MODEL_PATH = (Path.home() / ".cache/huggingface/hub/models--Qwen--Qwen1.5-MoE-A2.7B-Chat"
@@ -49,6 +51,8 @@ def parse_args():
     p.add_argument("--task", default=TASKS)
     p.add_argument("--eval-limit", type=int, default=0)
     p.add_argument("--eval-batch-size", type=int, default=16)
+    p.add_argument("--residual-scale", type=float, default=1.0,
+                   help="Eval only: multiply routed QJL row norms after checkpoint loading")
     p.add_argument("--skip-eval", action="store_true")
     args = p.parse_args()
     if args.row_chunk is not None:
@@ -58,6 +62,10 @@ def parse_args():
         p.error("QJL factor, iterations and row chunk must be positive")
     if args.mode == "eval" and not args.checkpoint:
         p.error("--checkpoint is required for eval")
+    if not math.isfinite(args.residual_scale) or args.residual_scale < 0:
+        p.error("--residual-scale must be finite and nonnegative")
+    if args.mode == "compress" and args.residual_scale != 1.0:
+        p.error("--residual-scale applies only to evaluation of an existing checkpoint")
     return args
 
 
@@ -89,7 +97,9 @@ def main():
     model.eval()
     tokenizer = AutoTokenizer.from_pretrained(str(source), trust_remote_code=True)
     metrics = {"mode": args.mode, "model": MODEL, "source": str(source),
-               "backend": args.backend}
+               "backend": args.backend, "residual_scale": args.residual_scale,
+               "task": args.task, "eval_limit": args.eval_limit,
+               "eval_batch_size": args.eval_batch_size}
     if args.mode == "compress":
         if args.qjl_row_chunk != 128:
             print("[codebook] warning: QJL row chunks other than 128 can change "
@@ -147,6 +157,7 @@ def main():
             raise AssertionError(f"checkpoint reload changed logits: {parity}")
     else:
         payload = load_checkpoint(model, args.checkpoint, backend=args.backend)
+        scale_loaded_residual_norms(model, args.residual_scale)
         metrics["base_method"] = payload["config"].get("base_method", "codebook")
         metrics["checkpoint"] = str(args.checkpoint)
         metrics["checkpoint_bytes"] = args.checkpoint.stat().st_size
@@ -154,12 +165,14 @@ def main():
         del payload
         if not args.skip_eval:
             path = out / "lm_eval.txt"
+            evaluation_start = time.perf_counter()
             results = evaluate_fewshot(model, tokenizer, args.task, 0,
                 eval_batch_size=args.eval_batch_size, output_path=str(path),
                 limit=args.eval_limit or None)
             metrics["task_summary"] = report_eval_summary(
                 results, args.task, str(path), header="Codebook Base + QJL evaluation")
             metrics["task_results"] = results.get("results", {})
+            metrics["evaluation_wall_seconds"] = time.perf_counter() - evaluation_start
     metrics.update(gpu_resident_breakdown(model))
     if torch.cuda.is_available():
         metrics["gpu_process_allocated_bytes"] = [

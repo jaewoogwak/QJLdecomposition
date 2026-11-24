@@ -279,6 +279,30 @@ def load_checkpoint(model, path, backend=None):
                 bases[key], residuals[key] = base, residual
             experts.append(CodebookExpert(bases, residuals))
         _install(block, experts)
+    model._codebook_residual_scale = 1.0
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
     return payload
+
+
+@torch.no_grad()
+def scale_loaded_residual_norms(model, alpha):
+    """Scale QJL only, after loading an Individual checkpoint into a model.
+
+    Reassignment makes fresh norm buffers rather than changing checkpoint
+    tensors; a different alpha requires a fresh checkpoint load.
+    """
+    alpha = float(alpha)
+    if not math.isfinite(alpha) or alpha < 0:
+        raise ValueError("residual scale must be finite and nonnegative")
+    if getattr(model, "_codebook_residual_scale", None) != 1.0:
+        raise RuntimeError("load the original checkpoint before applying residual scale")
+    residuals = [residual for layer in model.model.layers
+                 for expert in getattr(layer.mlp, "_compact_experts", ())
+                 for residual in expert.residuals.values()]
+    if not residuals:
+        raise ValueError("no loaded Individual QJL residuals found")
+    if alpha != 1.0:
+        for residual in residuals:
+            residual.norms = residual.norms * alpha
+    model._codebook_residual_scale = alpha

@@ -148,6 +148,52 @@ smoke run completed compression, checkpoint reload, one `arc_easy` question,
 and independent analysis of one saved pair. Full-model accuracy is reported
 only after the separate evaluation jobs finish.
 
+## Individual QJL residual scale ablation
+
+The existing Individual QJL checkpoint can be evaluated with a uniform
+residual scale without recompression. The evaluator loads the checkpoint
+afresh, multiplies the routed experts' Gate, Up, and Down residual row norms
+by `--residual-scale`, and leaves the Exponent-Mantissa Base, sketches,
+projection matrix, and router unchanged. A scale of `0` evaluates Base only;
+`1` reproduces the original Individual QJL model.
+
+```bash
+.venv/bin/python scripts/QJL/run_codebook_base.py \
+  --mode eval \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --checkpoint results/qjl_exponent_mantissa_base_2d/rerun/compact_qjl_state.pt \
+  --output-dir results/qjl_residual_alpha_sweep/d2n/alpha_0.5 \
+  --backend triton --task arc_easy,arc_challenge \
+  --eval-batch-size 64 --eval-limit 0 --residual-scale 0.5
+```
+
+Run all five scales with a fresh checkpoint load for each evaluation:
+
+```bash
+bash scripts/QJL/run_residual_alpha_sweep.sh
+```
+
+The sweep defaults to `0.0,0.25,0.50,0.75,1.0`, D=2n Individual QJL,
+zero-shot ARC Easy and Challenge, batch size 64, and full evaluation.
+`MODEL_PATH`, `CHECKPOINT`, `ALPHAS`, `TASKS`, `EVAL_BATCH_SIZE`, `EVAL_LIMIT`,
+and `OUTPUT_DIR` override the corresponding defaults. Set `TASKS` to
+`winogrande,arc_easy,arc_challenge,boolq,hellaswag,mmlu,openbookqa,rte` for
+the original eight-task set. Each `alpha_{value}` directory stores the
+evaluator's accuracy and metrics plus an `eval.log`; `summary.csv` and
+`summary.json` in the sweep output directory contain task accuracy,
+normalized accuracy, mean accuracy, and evaluation time.
+
+On the remote RTX PRO 5000, `pytest tests/test_residual_alpha.py
+tests/test_exponent_mantissa_base_qjl.py -q` passed **7 tests**, including
+Reference/Triton and fused Gate/Up checks. A smoke sweep with one question
+per ARC task completed all five scales and wrote both summary files under
+`results/qjl_residual_alpha_sweep/smoke_d2n/`. The original checkpoint's
+SHA-256 remained unchanged. The full zero-shot ARC evaluation at α=0
+(Base only) completed with ARC Easy acc 0.7045 / acc_norm 0.6797 and ARC
+Challenge acc 0.4036 / acc_norm 0.4172 (mean acc 0.5541). Its metrics and
+evaluation table are in `results/qjl_residual_alpha_sweep/d2n/alpha_0.0/`.
+Full evaluations at the other scales are not reported here.
+
 ## Tests and attribution
 
 ```bash

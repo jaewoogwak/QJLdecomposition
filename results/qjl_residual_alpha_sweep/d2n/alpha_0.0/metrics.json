@@ -1,0 +1,97 @@
+{
+  "mode": "eval",
+  "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+  "source": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+  "backend": "triton",
+  "residual_scale": 0.0,
+  "task": "arc_easy,arc_challenge",
+  "eval_limit": 0,
+  "eval_batch_size": 64,
+  "base_method": "exponent-mantissa",
+  "checkpoint": "results/qjl_exponent_mantissa_base_2d/rerun/compact_qjl_state.pt",
+  "checkpoint_bytes": 11059112989,
+  "checkpoint_config": {
+    "format": "rescode-codebook-base-qjl-v1",
+    "model": "Qwen/Qwen1.5-MoE-A2.7B-Chat",
+    "layers": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "qjl_d_factor": 2.0,
+    "base_method": "exponent-mantissa",
+    "projection_seed": 0,
+    "backend": "triton",
+    "iterations": 8,
+    "row_chunk": 128,
+    "base_row_chunk": 512,
+    "qjl_row_chunk": 128
+  },
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        0.7045454545454546,
+        0.6797138047138047
+      ],
+      [
+        "arc_challenge",
+        0.4035836177474403,
+        0.41723549488054607
+      ]
+    ],
+    "avg": 0.5540645361464475,
+    "avg_norm_strict": 0.5484746497971754,
+    "avg_norm": 0.5484746497971754,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 0.4035836177474403,
+      "acc_stderr,none": 0.014337158914268448,
+      "acc_norm,none": 0.41723549488054607,
+      "acc_norm_stderr,none": 0.014409825518403082
+    },
+    "arc_easy": {
+      "acc,none": 0.7045454545454546,
+      "acc_stderr,none": 0.009361987126556446,
+      "acc_norm,none": 0.6797138047138047,
+      "acc_norm_stderr,none": 0.00957415266873942
+    }
+  },
+  "evaluation_wall_seconds": 563.1294714370742,
+  "gpu_resident_base_bytes": 7905458160,
+  "gpu_resident_qjl_bytes": 3142287360,
+  "gpu_resident_projection_bytes": 24707072,
+  "gpu_resident_compact_total_bytes": 11072452592,
+  "gpu_process_allocated_bytes": [
+    15909359104
+  ],
+  "gpu_process_reserved_bytes": [
+    47234154496
+  ],
+  "gpu_process_peak_allocated_bytes": [
+    30884981248
+  ]
+}
