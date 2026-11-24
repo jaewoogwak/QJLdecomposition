@@ -74,18 +74,33 @@ the same layer and projection. Pairing can be seeded random or exact maximum
 weight matching on binary Hamming agreement. Compression does not fit scales
 or use activation data.
 
+The existing D=2n checkpoints can be evaluated separately with an explicit
+checkpoint path for each method:
+
 ```bash
-MODEL=/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat
-for method in majority magnitude-aware; do
-  out="results/qjl_residual_bundle/${method}_d2n_similarity"
-  .venv/bin/python scripts/QJL/run_residual_bundle.py --mode compress \
-    --model-path "$MODEL" --layers all --bundle-method "$method" \
-    --pairing similarity --qjl-d-factor 2 --backend triton \
-    --output-dir "$out" --skip-eval
-  .venv/bin/python scripts/QJL/run_residual_bundle.py --mode eval \
-    --model-path "$MODEL" --checkpoint "$out/compact_qjl_state.pt" \
-    --output-dir "$out/eval" --backend triton --eval-limit 0
-done
+bash scripts/QJL/run_residual_bundle_sweep.sh --mode eval \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --bundle-method majority --pairing similarity --qjl-d-factor 2 \
+  --checkpoint results/qjl_residual_bundle/d2n_similarity/majority_d2n_similarity/compact_qjl_state.pt \
+  --output-dir results/qjl_residual_bundle/d2n_similarity/majority_d2n_similarity \
+  --eval-batch-size 1
+
+bash scripts/QJL/run_residual_bundle_sweep.sh --mode eval \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --bundle-method magnitude-aware --pairing similarity --qjl-d-factor 2 \
+  --checkpoint results/qjl_residual_bundle/d2n_similarity/magnitude-aware_d2n_similarity/compact_qjl_state.pt \
+  --output-dir results/qjl_residual_bundle/d2n_similarity/magnitude-aware_d2n_similarity \
+  --eval-batch-size 1
+```
+
+Use `--mode compress` for compression only or `--mode both` to compress and
+evaluate one configuration. Single-configuration calls require an explicit
+`--checkpoint`. For the complete six-configuration sweep:
+
+```bash
+bash scripts/QJL/run_residual_bundle_sweep.sh --all --mode both \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --output-dir results/qjl_residual_bundle/sweep
 ```
 
 `--task arc_easy,arc_challenge` limits evaluation to named tasks; the default
@@ -93,11 +108,11 @@ is winogrande, arc_easy, arc_challenge, boolq, hellaswag, mmlu, openbookqa,
 and rte. `--eval-limit 0` evaluates all questions. The script also supports
 `--bundle-method none`, `--pairing random`, and independent projection,
 pairing, and bundle seeds. To run the six standard bit-budget configurations,
-use `MODEL_PATH="$MODEL" bash scripts/QJL/run_residual_bundle_sweep.sh`.
-`RUNS='majority:2 magnitude-aware:2'` selects only the two D=2n bundles.
+use `--all` as shown above. `--mode eval` always uses the specified checkpoint
+and checks that its saved method, pairing, and D factor match the options.
 The new evaluator defaults to batch size 1 because full eight-task evaluation
 at batch size 16 exhausted the 48 GB RTX PRO 5000 GPU during FP32 logits
-allocation. Use `--eval-batch-size` or `EVAL_BATCH_SIZE` in the sweep to override.
+allocation. Use `--eval-batch-size` to override.
 
 The checkpoint stores `layers[layer].pairs[projection]`, expert-specific
 `base` and `norms`, and `layers[layer].sketches[projection][pair_id]` once per
@@ -112,9 +127,9 @@ Independent diagnostics run separately:
 
 ```bash
 .venv/bin/python scripts/QJL/analyze_residual_bundle.py \
-  --model-path "$MODEL" \
-  --checkpoint results/qjl_residual_bundle/majority_d2n_similarity/compact_qjl_state.pt \
-  --output-dir results/qjl_residual_bundle/majority_d2n_similarity/analysis
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --checkpoint results/qjl_residual_bundle/d2n_similarity/majority_d2n_similarity/compact_qjl_state.pt \
+  --output-dir results/qjl_residual_bundle/d2n_similarity/majority_d2n_similarity/analysis
 ```
 
 This writes expert, pair, projection, and layer CSV files plus aggregate JSON.

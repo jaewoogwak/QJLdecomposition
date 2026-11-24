@@ -31,9 +31,9 @@ def parse_args(argv=None):
     parser.add_argument("--model-path", type=Path, default=MODEL_PATH)
     parser.add_argument("--layers", default="all")
     parser.add_argument("--bundle-method", choices=("none", "majority", "magnitude-aware"),
-                        default="none")
-    parser.add_argument("--pairing", choices=("random", "similarity"), default="similarity")
-    parser.add_argument("--qjl-d-factor", type=float, default=2.0)
+                        default=None)
+    parser.add_argument("--pairing", choices=("random", "similarity"), default=None)
+    parser.add_argument("--qjl-d-factor", type=float, default=None)
     parser.add_argument("--projection-seed", type=int, default=0)
     parser.add_argument("--pairing-seed", type=int, default=0)
     parser.add_argument("--bundle-seed", type=int, default=0)
@@ -49,10 +49,15 @@ def parse_args(argv=None):
     args = parser.parse_args(argv)
     if args.mode == "eval" and args.checkpoint is None:
         parser.error("--checkpoint is required for eval")
-    if args.qjl_d_factor <= 0 or args.row_chunk <= 0 or args.eval_limit < 0:
+    if ((args.qjl_d_factor is not None and args.qjl_d_factor <= 0)
+            or args.row_chunk <= 0 or args.eval_limit < 0):
         parser.error("QJL factor and row chunk must be positive; eval limit must be nonnegative")
     if args.eval_batch_size < 1 or not 0 < args.gpu_memory_fraction <= 1:
         parser.error("invalid eval batch size or GPU memory fraction")
+    if args.mode == "compress":
+        args.bundle_method = args.bundle_method or "none"
+        args.pairing = args.pairing or "similarity"
+        args.qjl_d_factor = args.qjl_d_factor or 2.0
     return args
 
 
@@ -125,6 +130,12 @@ def main(argv=None):
     else:
         payload = load_checkpoint(model, checkpoint, backend=args.backend)
         config = payload["config"]
+        for option, key in (("bundle_method", "bundle_method"),
+                            ("pairing", "pairing"), ("qjl_d_factor", "qjl_d_factor")):
+            selected = getattr(args, option)
+            if selected is not None and selected != config[key]:
+                raise ValueError(f"--{option.replace('_', '-')}={selected} does not match "
+                                 f"checkpoint {key}={config[key]}")
         metrics["checkpoint_config"] = config
         metrics.update(checkpoint_sizes(payload["layers"], checkpoint))
         run_eval(model, tokenizer, args, out, metrics)
