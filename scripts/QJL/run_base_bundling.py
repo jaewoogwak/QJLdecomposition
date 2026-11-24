@@ -235,6 +235,7 @@ def summarize_evaluations(out: Path):
 
 
 def write_report(out: Path, config: dict | None, rows: list[dict]):
+    import statistics
     lines = ["# Pairwise QJL Base + low-rank residual", "",
              "A uses one shared packed sketch per pair and expert-specific FP32 norms.",
              "B adds BF16 SVD factors for the residual after bundling.", ""]
@@ -254,6 +255,18 @@ def write_report(out: Path, config: dict | None, rows: list[dict]):
                   "Effective BPW and BF16 reduction use routed weights in the selected layers.", ""]
     else:
         lines += ["Evaluation has not been run.", ""]
+    analysis_path = out / "per_expert.csv"
+    if analysis_path.is_file():
+        analysis = read_rows(analysis_path)
+        lines += [f"Analyzed {len(analysis)} residual matrices. Means across matrices:", ""]
+        for field, label in (("residual_frobenius_ratio", "Residual/weight Frobenius ratio"),
+                             ("pre_bundle_bit_agreement", "Pre-bundle bit agreement"),
+                             ("post_bundle_bit_preservation", "Post-bundle bit preservation"),
+                             ("energy_rank_512", "Rank-512 FP32 residual energy retention"),
+                             ("optimal_weight_error_rank_512", "Optimal rank-512 weight error"),
+                             ("bf16_factor_weight_error", "BF16 factor weight error")):
+            lines.append(f"- {label}: {statistics.fmean(float(r[field]) for r in analysis):.6f}")
+        lines += [""]
     (out / "REPORT.md").write_text("\n".join(lines))
 
 

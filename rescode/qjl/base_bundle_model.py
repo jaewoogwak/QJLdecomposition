@@ -92,6 +92,8 @@ def spectrum_metrics(s: torch.Tensor, residual: torch.Tensor, weight: torch.Tens
         retention = float(cumulative[k - 1])
         result[f"energy_rank_{rank}"] = retention
         result[f"optimal_residual_error_rank_{rank}"] = math.sqrt(max(0., 1. - retention))
+        result[f"optimal_weight_error_rank_{rank}"] = (
+            result["residual_frobenius_ratio"] * result[f"optimal_residual_error_rank_{rank}"])
     approximation = u.float() @ v.float()
     result["bf16_factor_residual_error"] = _fraction(
         torch.linalg.vector_norm(residual - approximation), torch.linalg.vector_norm(residual))

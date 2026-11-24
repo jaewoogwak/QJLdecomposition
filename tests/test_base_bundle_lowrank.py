@@ -83,6 +83,9 @@ def test_pairs_spectrum_and_exact_reconstruction(encoded):
     assert abs(metrics["energy_rank_4"] - expected_energy) < 1e-5
     assert abs(metrics["optimal_residual_error_rank_4"] -
                (1 - expected_energy) ** .5) < 1e-5
+    assert metrics["optimal_weight_error_rank_4"] == pytest.approx(
+        metrics["optimal_residual_error_rank_4"] *
+        metrics["residual_frobenius_ratio"])
     assert row["energy_rank_32"] == pytest.approx(1., abs=1e-5)
     assert row["bf16_factor_residual_error"] >= metrics["optimal_residual_error_rank_4"] - 1e-5
 

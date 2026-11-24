@@ -1,0 +1,65 @@
+{
+  "case": "A",
+  "source": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+  "checkpoint_dir": "/home/jaewoo/QJLdecomposition/results/base_bundling/pairwise_d2n_r512/checkpoint",
+  "task": "arc_easy,arc_challenge",
+  "eval_limit": 0,
+  "eval_batch_size": 16,
+  "backend": "triton",
+  "evaluation_wall_seconds": 683.7005374178989,
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        0.26725589225589225,
+        0.2756734006734007
+      ],
+      [
+        "arc_challenge",
+        0.19880546075085323,
+        0.2508532423208191
+      ]
+    ],
+    "avg": 0.23303067650337272,
+    "avg_norm_strict": 0.2632633214971099,
+    "avg_norm": 0.2632633214971099,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 0.19880546075085323,
+      "acc_stderr,none": 0.011662850198175536,
+      "acc_norm,none": 0.2508532423208191,
+      "acc_norm_stderr,none": 0.01266819862131543
+    },
+    "arc_easy": {
+      "acc,none": 0.26725589225589225,
+      "acc_stderr,none": 0.00908046324601747,
+      "acc_norm,none": 0.2756734006734007,
+      "acc_norm_stderr,none": 0.009169229476542565
+    }
+  },
+  "storage": {
+    "shared_sketch_bytes": 1557135360,
+    "row_norm_bytes": 28016640,
+    "lowrank_residual_bytes": 0,
+    "actual_checkpoint_bytes": 1587022608,
+    "metadata_and_container_bytes": 1870608,
+    "routed_weight_count": 12457082880,
+    "effective_bpw": 1.019193737916272,
+    "bf16_storage_reduction": 0.936300391380233
+  },
+  "runtime": {
+    "gpu_shared_sketch_bytes": 1557135360,
+    "gpu_row_norm_bytes": 28016640,
+    "gpu_lowrank_bytes": 0,
+    "gpu_projection_bytes": 24707072,
+    "gpu_compact_total_bytes": 1609859072
+  },
+  "gpu_process_allocated_bytes": [
+    5745786880
+  ],
+  "gpu_process_peak_allocated_bytes": [
+    10229183488
+  ]
+}

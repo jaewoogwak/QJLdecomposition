@@ -254,13 +254,27 @@ tests/test_residual_bundle.py tests/test_residual_alpha.py -q` passed **14
 tests** on the remote GPU, including Triton parity, unique sketch storage,
 and compatibility with the existing experiments. A layer-12 smoke run
 compressed all 180 routed matrices in that layer, wrote full spectra and
-both plots, then reloaded Original/A/B
-for one ARC Easy and one ARC Challenge question each. Both compressed
-cases used the same 64,880,640 sketch bytes and 1,167,360 norm bytes;
+both plots, then reloaded Original/A/B for one ARC Easy and one ARC
+Challenge question each. Both compressed cases used the same 64,880,640
+sketch bytes and 1,167,360 norm bytes;
 only B loaded 637,009,920 BF16 factor bytes. Case A measured 1.019 BPW
 and B 10.839 BPW for routed weights in the selected layer. Those two
-questions are an execution check, not an accuracy estimate. Full 24-layer
-compression and full ARC evaluation have not been run for this experiment.
+questions are an execution check, not an accuracy estimate.
+
+The full 24-layer, 4,320-matrix compression and zero-shot ARC Easy/Challenge
+evaluation later completed with batch size 16:
+
+| Case | ARC Easy acc | ARC Challenge acc | Mean acc | Mean acc_norm | Routed BPW |
+|---|---:|---:|---:|---:|---:|
+| Original BF16 | 0.7020 | 0.4002 | 0.5511 | 0.5465 | 16.000 |
+| A: Bundled Base | 0.2673 | 0.1988 | 0.2330 | 0.2633 | 1.019 |
+| B: Base + rank-512 | 0.4398 | 0.2679 | 0.3539 | 0.3521 | 10.839 |
+
+Full results are in `results/base_bundling/pairwise_d2n_r512/`, including
+the complete singular spectra, per-expert metrics, plots, and storage and
+evaluation summaries. A/B checkpoint sizes count compressed routed layers;
+the Original checkpoint size counts all model safetensors. Routed BPW uses
+the same weight count for all three cases.
 
 ## Tests and attribution
 

@@ -1,0 +1,64 @@
+{
+  "case": "original",
+  "source": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+  "checkpoint_dir": null,
+  "task": "arc_easy,arc_challenge",
+  "eval_limit": 0,
+  "eval_batch_size": 16,
+  "backend": "triton",
+  "evaluation_wall_seconds": 364.75071696401574,
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        0.702020202020202,
+        0.6818181818181818
+      ],
+      [
+        "arc_challenge",
+        0.40017064846416384,
+        0.4112627986348123
+      ]
+    ],
+    "avg": 0.5510954252421829,
+    "avg_norm_strict": 0.546540490226497,
+    "avg_norm": 0.546540490226497,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 0.40017064846416384,
+      "acc_stderr,none": 0.014317197787809183,
+      "acc_norm,none": 0.4112627986348123,
+      "acc_norm_stderr,none": 0.014379441068522082
+    },
+    "arc_easy": {
+      "acc,none": 0.702020202020202,
+      "acc_stderr,none": 0.009385046066694873,
+      "acc_norm,none": 0.6818181818181818,
+      "acc_norm_stderr,none": 0.009557408782506374
+    }
+  },
+  "storage": {
+    "routed_weight_count": 12457082880,
+    "routed_bf16_bytes": 24914165760,
+    "actual_checkpoint_bytes": 28632144944,
+    "effective_bpw": 16.0,
+    "bf16_storage_reduction": 0.0,
+    "shared_sketch_bytes": 0,
+    "row_norm_bytes": 0,
+    "lowrank_residual_bytes": 0
+  },
+  "runtime": {
+    "gpu_shared_sketch_bytes": 0,
+    "gpu_row_norm_bytes": 0,
+    "gpu_lowrank_bytes": 0,
+    "gpu_projection_bytes": 0
+  },
+  "gpu_process_allocated_bytes": [
+    29062676480
+  ],
+  "gpu_process_peak_allocated_bytes": [
+    33546073088
+  ]
+}
