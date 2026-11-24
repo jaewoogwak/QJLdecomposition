@@ -1,0 +1,12 @@
+{
+  "checkpoint_bytes": 9501328917,
+  "base_tensor_bytes": 7905458160,
+  "qjl_sketch_bytes": 1557135360,
+  "norm_bytes": 28016640,
+  "qjl_tensor_bytes": 1585152000,
+  "projection_tensor_bytes": 0,
+  "metadata_bytes": 10718757,
+  "weight_count": 12457082880,
+  "checkpoint_bits_per_weight": 6.101800242337314,
+  "bf16_compression_ratio": 2.6221769583645287
+}

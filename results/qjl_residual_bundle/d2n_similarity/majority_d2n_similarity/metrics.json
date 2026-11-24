@@ -1,0 +1,34 @@
+{
+  "mode": "compress",
+  "source": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+  "backend": "triton",
+  "task": "winogrande,arc_easy,arc_challenge,boolq,hellaswag,mmlu,openbookqa,rte",
+  "eval_limit": 0,
+  "eval_batch_size": 16,
+  "compression_wall_seconds": 965.5644017889863,
+  "checkpoint_bytes": 9501328917,
+  "base_tensor_bytes": 7905458160,
+  "qjl_sketch_bytes": 1557135360,
+  "norm_bytes": 28016640,
+  "qjl_tensor_bytes": 1585152000,
+  "projection_tensor_bytes": 0,
+  "metadata_bytes": 10718757,
+  "weight_count": 12457082880,
+  "checkpoint_bits_per_weight": 6.101800242337314,
+  "bf16_compression_ratio": 2.6221769583645287,
+  "base_bits_per_weight": 5.076924179539536,
+  "qjl_sketch_bits_per_weight": 1.0,
+  "norm_bits_per_weight": 0.017992424242424244,
+  "checkpoint": "results/qjl_residual_bundle/d2n_similarity/majority_d2n_similarity/compact_qjl_state.pt",
+  "gpu_resident_base_bytes": 7905458160,
+  "gpu_resident_norm_bytes": 28016640,
+  "gpu_resident_qjl_sketch_bytes": 1557135360,
+  "gpu_resident_projection_bytes": 24707072,
+  "gpu_resident_compact_total_bytes": 9515317232,
+  "gpu_process_allocated_bytes": [
+    14351842304
+  ],
+  "gpu_process_peak_allocated_bytes": [
+    29549965312
+  ]
+}
