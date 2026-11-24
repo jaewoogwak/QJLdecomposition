@@ -74,7 +74,7 @@ fields = ["alpha", "case", "checkpoint", "evaluation_wall_seconds",
 for task in tasks:
     fields.extend((f"{task}_acc", f"{task}_acc_norm"))
 with (output / "summary.csv").open("w", newline="") as f:
-    writer = csv.DictWriter(f, fieldnames=fields)
+    writer = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
     writer.writeheader()
     writer.writerows(rows)
 (output / "summary.json").write_text(json.dumps({

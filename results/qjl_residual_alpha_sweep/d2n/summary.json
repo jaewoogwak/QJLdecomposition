@@ -1,0 +1,70 @@
+{
+  "checkpoint": "results/qjl_exponent_mantissa_base_2d/rerun/compact_qjl_state.pt",
+  "tasks": [
+    "arc_easy",
+    "arc_challenge"
+  ],
+  "cases": [
+    {
+      "alpha": 0.0,
+      "case": "A (Base only)",
+      "checkpoint": "results/qjl_exponent_mantissa_base_2d/rerun/compact_qjl_state.pt",
+      "evaluation_wall_seconds": 563.1294714370742,
+      "mean_accuracy": 0.5540645361464475,
+      "mean_acc_norm": 0.5484746497971754,
+      "arc_easy_acc": 0.7045454545454546,
+      "arc_easy_acc_norm": 0.6797138047138047,
+      "arc_challenge_acc": 0.4035836177474403,
+      "arc_challenge_acc_norm": 0.41723549488054607
+    },
+    {
+      "alpha": 0.25,
+      "case": "B",
+      "checkpoint": "results/qjl_exponent_mantissa_base_2d/rerun/compact_qjl_state.pt",
+      "evaluation_wall_seconds": 561.452830292983,
+      "mean_accuracy": 0.5511126624607854,
+      "mean_acc_norm": 0.5499362222911711,
+      "arc_easy_acc": 0.6994949494949495,
+      "arc_easy_acc_norm": 0.6843434343434344,
+      "arc_challenge_acc": 0.40273037542662116,
+      "arc_challenge_acc_norm": 0.41552901023890787
+    },
+    {
+      "alpha": 0.5,
+      "case": "C",
+      "checkpoint": "results/qjl_exponent_mantissa_base_2d/rerun/compact_qjl_state.pt",
+      "evaluation_wall_seconds": 560.7870197299635,
+      "mean_accuracy": 0.5349872444582342,
+      "mean_acc_norm": 0.5381344732880569,
+      "arc_easy_acc": 0.6868686868686869,
+      "arc_easy_acc_norm": 0.6632996632996633,
+      "arc_challenge_acc": 0.38310580204778155,
+      "arc_challenge_acc_norm": 0.4129692832764505
+    },
+    {
+      "alpha": 0.75,
+      "case": "D",
+      "checkpoint": "results/qjl_exponent_mantissa_base_2d/rerun/compact_qjl_state.pt",
+      "evaluation_wall_seconds": 561.2393259688979,
+      "mean_accuracy": 0.5214272991576746,
+      "mean_acc_norm": 0.5251943496397421,
+      "arc_easy_acc": 0.6734006734006734,
+      "arc_easy_acc_norm": 0.6527777777777778,
+      "arc_challenge_acc": 0.36945392491467577,
+      "arc_challenge_acc_norm": 0.39761092150170646
+    },
+    {
+      "alpha": 1.0,
+      "case": "E (Individual baseline)",
+      "checkpoint": "results/qjl_exponent_mantissa_base_2d/rerun/compact_qjl_state.pt",
+      "evaluation_wall_seconds": 560.6933339369716,
+      "mean_accuracy": 0.5064460015398582,
+      "mean_acc_norm": 0.5102073062823916,
+      "arc_easy_acc": 0.6494107744107744,
+      "arc_easy_acc_norm": 0.6296296296296297,
+      "arc_challenge_acc": 0.363481228668942,
+      "arc_challenge_acc_norm": 0.39078498293515357
+    }
+  ],
+  "acc_norm_fallback": "Use acc for tasks without acc_norm in mean_acc_norm"
+}

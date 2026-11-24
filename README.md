@@ -188,11 +188,20 @@ tests/test_exponent_mantissa_base_qjl.py -q` passed **7 tests**, including
 Reference/Triton and fused Gate/Up checks. A smoke sweep with one question
 per ARC task completed all five scales and wrote both summary files under
 `results/qjl_residual_alpha_sweep/smoke_d2n/`. The original checkpoint's
-SHA-256 remained unchanged. The full zero-shot ARC evaluation at α=0
-(Base only) completed with ARC Easy acc 0.7045 / acc_norm 0.6797 and ARC
-Challenge acc 0.4036 / acc_norm 0.4172 (mean acc 0.5541). Its metrics and
-evaluation table are in `results/qjl_residual_alpha_sweep/d2n/alpha_0.0/`.
-Full evaluations at the other scales are not reported here.
+SHA-256 remained unchanged. The full zero-shot ARC Easy and Challenge sweep
+completed at batch size 64, with the same D=2n Individual checkpoint loaded
+separately for each scale:
+
+| α | ARC Easy acc | ARC Challenge acc | Mean acc | Mean acc_norm |
+|---:|---:|---:|---:|---:|
+| 0.00 | 0.7045 | 0.4036 | 0.5541 | 0.5485 |
+| 0.25 | 0.6995 | 0.4027 | 0.5511 | 0.5499 |
+| 0.50 | 0.6869 | 0.3831 | 0.5350 | 0.5381 |
+| 0.75 | 0.6734 | 0.3695 | 0.5214 | 0.5252 |
+| 1.00 | 0.6494 | 0.3635 | 0.5064 | 0.5102 |
+
+Per-task normalized accuracy, evaluation time, and full-precision values
+are in `results/qjl_residual_alpha_sweep/d2n/summary.csv` and `summary.json`.
 
 ## Tests and attribution
 
