@@ -203,6 +203,65 @@ separately for each scale:
 Per-task normalized accuracy, evaluation time, and full-precision values
 are in `results/qjl_residual_alpha_sweep/d2n/summary.csv` and `summary.json`.
 
+## Pairwise QJL Base + low-rank residual (`base-bundling` branch)
+
+This experiment pairs all 60 routed experts independently for Gate, Up, and
+Down in each selected layer. Maximum-weight Hamming matching chooses 30
+disjoint pairs per projection. A seeded majority vote produces one packed
+sketch per pair, while FP32 row norms remain expert-specific. The effective
+QJL Base uses the stored shared sketch; the FP32 SVD residual is computed
+from the original weight minus that Base. Rank factors are saved as BF16.
+
+Run all 24 layers and full zero-shot ARC Easy/Challenge evaluation:
+
+```bash
+bash scripts/QJL/run_base_bundling.sh
+```
+
+The script supports `MODEL_PATH`, `QJL_D_FACTOR`, `RANK`, `TASKS`,
+`EVAL_BATCH_SIZE`, `EVAL_LIMIT`, `LAYERS`, `OUTPUT_DIR`, and `CASES`.
+Defaults are D=2n, rank 512, batch 16, full ARC, and cases
+`original,A,B`. Set `TASKS` to
+`winogrande,arc_easy,arc_challenge,boolq,hellaswag,mmlu,openbookqa,rte`
+for all eight benchmarks. Compression and evaluation can also be run
+separately; `--resume` skips completed layer shards:
+
+```bash
+.venv/bin/python scripts/QJL/run_base_bundling.py --mode compress \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --layers all --qjl-d-factor 2 --rank 512 --resume \
+  --output-dir results/base_bundling/pairwise_d2n_r512
+
+.venv/bin/python scripts/QJL/run_base_bundling.py --mode eval --case A \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --output-dir results/base_bundling/pairwise_d2n_r512 \
+  --backend triton --task arc_easy,arc_challenge \
+  --eval-limit 0 --eval-batch-size 16
+```
+
+Use `--case original` or `--case B` for the other evaluations. Checkpoint
+`base_layer_N.pt` stores pair maps, one packed sketch per pair, and individual
+norms. `rank_layer_N.pt` stores only BF16 factor matrices and is loaded only
+for B. This gives A and B identical Base tensors. Full singular spectra and
+per-expert metrics are stored separately as `spectrum_layer_N.npz` and
+`per_expert_layer_N.csv`; no exact residual matrix is checkpointed. The
+output directory also contains aggregate `per_expert.csv`, plots,
+`storage_A.json`, `storage_B.json`, `summary.csv`, `summary.json`,
+`REPORT.md`, and each case's `eval_metrics.json` after evaluation.
+
+Unit tests: `.venv/bin/python -m pytest tests/test_base_bundle_lowrank.py
+tests/test_residual_bundle.py tests/test_residual_alpha.py -q` passed **14
+tests** on the remote GPU, including Triton parity, unique sketch storage,
+and compatibility with the existing experiments. A layer-12 smoke run
+compressed all 180 routed matrices in that layer, wrote full spectra and
+both plots, then reloaded Original/A/B
+for one ARC Easy and one ARC Challenge question each. Both compressed
+cases used the same 64,880,640 sketch bytes and 1,167,360 norm bytes;
+only B loaded 637,009,920 BF16 factor bytes. Case A measured 1.019 BPW
+and B 10.839 BPW for routed weights in the selected layer. Those two
+questions are an execution check, not an accuracy estimate. Full 24-layer
+compression and full ARC evaluation have not been run for this experiment.
+
 ## Tests and attribution
 
 ```bash

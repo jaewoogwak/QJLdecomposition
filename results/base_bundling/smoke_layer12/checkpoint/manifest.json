@@ -1,0 +1,13 @@
+{
+  "format": "pairwise-qjl-base-lowrank-v1",
+  "model_path": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+  "layers": [
+    12
+  ],
+  "qjl_d_factor": 2.0,
+  "rank": 512,
+  "projection_seed": 0,
+  "pairing_seed": 0,
+  "bundle_seed": 0,
+  "row_chunk": 128
+}

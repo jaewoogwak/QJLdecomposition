@@ -1,0 +1,64 @@
+{
+  "case": "original",
+  "source": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+  "checkpoint_dir": null,
+  "task": "arc_easy,arc_challenge",
+  "eval_limit": 1,
+  "eval_batch_size": 1,
+  "backend": "triton",
+  "evaluation_wall_seconds": 12.530331589980051,
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        0.0,
+        1.0
+      ],
+      [
+        "arc_challenge",
+        1.0,
+        1.0
+      ]
+    ],
+    "avg": 0.5,
+    "avg_norm_strict": 1.0,
+    "avg_norm": 1.0,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 1.0,
+      "acc_stderr,none": "N/A",
+      "acc_norm,none": 1.0,
+      "acc_norm_stderr,none": "N/A"
+    },
+    "arc_easy": {
+      "acc,none": 0.0,
+      "acc_stderr,none": "N/A",
+      "acc_norm,none": 1.0,
+      "acc_norm_stderr,none": "N/A"
+    }
+  },
+  "storage": {
+    "routed_weight_count": 519045120,
+    "routed_bf16_bytes": 1038090240,
+    "actual_checkpoint_bytes": 28632144944,
+    "effective_bpw": 16.0,
+    "bf16_storage_reduction": 0.0,
+    "shared_sketch_bytes": 0,
+    "row_norm_bytes": 0,
+    "lowrank_residual_bytes": 0
+  },
+  "runtime": {
+    "gpu_shared_sketch_bytes": 0,
+    "gpu_row_norm_bytes": 0,
+    "gpu_lowrank_bytes": 0,
+    "gpu_projection_bytes": 0
+  },
+  "gpu_process_allocated_bytes": [
+    29062676480
+  ],
+  "gpu_process_peak_allocated_bytes": [
+    29131885568
+  ]
+}

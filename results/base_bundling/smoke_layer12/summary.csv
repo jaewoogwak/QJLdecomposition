@@ -1,0 +1,4 @@
+case,average_accuracy,average_acc_norm,evaluation_wall_seconds,arc_easy_acc,arc_easy_acc_norm,arc_challenge_acc,arc_challenge_acc_norm,routed_weight_count,routed_bf16_bytes,actual_checkpoint_bytes,effective_bpw,bf16_storage_reduction,shared_sketch_bytes,row_norm_bytes,lowrank_residual_bytes,metadata_and_container_bytes
+original,0.5,1.0,12.530331589980051,0.0,1.0,1.0,1.0,519045120,1038090240,28632144944,16.0,0.0,0,0,0,
+A,1.0,1.0,13.436481044976972,1.0,1.0,1.0,1.0,519045120,,66126297,1.019199209502249,0.9363000494061094,64880640,1167360,0,78297
+B,1.0,1.0,13.59400274604559,1.0,1.0,1.0,1.0,519045120,,703240550,10.838989103683318,0.32256318101979264,64880640,1167360,637009920,182630
