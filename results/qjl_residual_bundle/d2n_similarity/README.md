@@ -24,5 +24,25 @@ Compression metrics and diagnostics are stored beside the evaluation files.
 The `.pt` checkpoints remain on the server at the paths recorded in each
 `metrics.json`. They exceed ordinary GitHub file size limits and are excluded
 from this commit, consistent with the repository's earlier result records.
-The interrupted `analysis_full` run and failed preliminary evaluation logs
-are excluded. No full eight-task evaluation is claimed here.
+The interrupted `analysis.log` and failed preliminary evaluation logs are
+excluded. No full eight-task evaluation is claimed here.
+
+## Full synthetic-input analysis
+
+[`majority_d2n_similarity/analysis_full/`](majority_d2n_similarity/analysis_full/)
+contains the completed independent analysis of all 24 layers, three
+projections, and 30 pairs per projection. Its 12,960 expert-method rows compare
+Individual QJL, majority, and magnitude-aware on the same synthetic inputs.
+The majority sketch is read from the checkpoint; the other sketches are
+reconstructed using its saved pair map and seeds.
+
+| Mean over expert-method rows | Individual | Majority | Magnitude-aware |
+| --- | ---: | ---: | ---: |
+| Bit preservation | 1.0000 | 0.7503 | 0.7503 |
+| Residual output relative L2 error | 0.8855 | 1.1333 | 1.1703 |
+| Full weight output relative L2 error | 0.1725 | 0.2208 | 0.2280 |
+| Full output cosine similarity | 0.9854 | 0.9758 | 0.9745 |
+
+The mean pre-bundle bit agreement is 0.5006. These are synthetic per-projection
+metrics, not downstream task accuracy; the ARC scores above are separate
+evaluations.
