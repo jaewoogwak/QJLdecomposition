@@ -271,13 +271,18 @@ def write_report(out: Path, config: dict | None, rows: list[dict]):
     if analysis_path.is_file():
         analysis = read_rows(analysis_path)
         lines += [f"Analyzed {len(analysis)} residual matrices. Means across matrices:", ""]
-        for field, label in (("residual_frobenius_ratio", "Residual/weight Frobenius ratio"),
-                             ("pre_bundle_bit_agreement", "Pre-bundle bit agreement"),
-                             ("post_bundle_bit_preservation", "Post-bundle bit preservation"),
-                             ("energy_rank_512", "Rank-512 FP32 residual energy retention"),
-                             ("optimal_weight_error_rank_512", "Optimal rank-512 weight error"),
-                             ("bf16_factor_weight_error", "BF16 factor weight error")):
-            lines.append(f"- {label}: {statistics.fmean(float(r[field]) for r in analysis):.6f}")
+        rank = config["rank"] if config else None
+        fields = [("residual_frobenius_ratio", "Residual/weight Frobenius ratio"),
+                  ("pre_bundle_bit_agreement", "Pre-bundle bit agreement"),
+                  ("post_bundle_bit_preservation", "Post-bundle bit preservation")]
+        if rank is not None:
+            fields += [(f"energy_rank_{rank}", f"Rank-{rank} FP32 residual energy retention"),
+                       (f"optimal_weight_error_rank_{rank}",
+                        f"Optimal rank-{rank} weight error")]
+        fields.append(("bf16_factor_weight_error", "BF16 factor weight error"))
+        for field, label in fields:
+            if field in analysis[0]:
+                lines.append(f"- {label}: {statistics.fmean(float(r[field]) for r in analysis):.6f}")
         lines += [""]
     (out / "REPORT.md").write_text("\n".join(lines))
 

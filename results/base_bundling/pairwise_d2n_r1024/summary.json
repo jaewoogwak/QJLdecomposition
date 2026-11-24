@@ -1,0 +1,20 @@
+[
+  {
+    "case": "B",
+    "average_accuracy": 0.5390315268728239,
+    "average_acc_norm": 0.5197057319497592,
+    "evaluation_wall_seconds": 935.0645934320055,
+    "arc_easy_acc": 0.6881313131313131,
+    "arc_easy_acc_norm": 0.6443602693602694,
+    "arc_challenge_acc": 0.38993174061433444,
+    "arc_challenge_acc_norm": 0.39505119453924914,
+    "shared_sketch_bytes": 1557135360,
+    "row_norm_bytes": 28016640,
+    "lowrank_residual_bytes": 30576476160,
+    "actual_checkpoint_bytes": 32165998461,
+    "metadata_and_container_bytes": 4370301,
+    "routed_weight_count": 12457082880,
+    "effective_bpw": 20.657162689440177,
+    "bf16_storage_reduction": -0.2910726680900111
+  }
+]

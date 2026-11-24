@@ -253,7 +253,7 @@ output directory also contains aggregate `per_expert.csv`, plots,
 `REPORT.md`, and each case's `eval_metrics.json` after evaluation.
 
 Unit tests: `.venv/bin/python -m pytest tests/test_base_bundle_lowrank.py
-tests/test_residual_bundle.py tests/test_residual_alpha.py -q` passed **15
+tests/test_residual_bundle.py tests/test_residual_alpha.py -q` passed **16
 tests** on the remote GPU, including Triton parity, unique sketch storage,
 and compatibility with the existing experiments. A layer-12 smoke run
 compressed all 180 routed matrices in that layer, wrote full spectra and
@@ -278,6 +278,13 @@ the complete singular spectra, per-expert metrics, plots, and storage and
 evaluation summaries. A/B checkpoint sizes count compressed routed layers;
 the Original checkpoint size counts all model safetensors. Routed BPW uses
 the same weight count for all three cases.
+
+A separate full run kept D=2n and evaluated only B with rank 1024. ARC Easy
+acc was **0.6881**, ARC Challenge acc **0.3899**, mean acc **0.5390**, and
+mean acc_norm **0.5197**. Its routed storage was **20.657 BPW**, about 29.1%
+larger than BF16 routed weights. Results are in
+`results/base_bundling/pairwise_d2n_r1024/`; the original and Base-only
+evaluations were not repeated for this rank.
 
 ## Tests and attribution
 

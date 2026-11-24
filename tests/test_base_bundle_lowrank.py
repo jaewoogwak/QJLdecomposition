@@ -16,7 +16,7 @@ from rescode.qjl.codebook_model import bank_for
 from rescode.qjl.residual_bundle_model import validate_pairs
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/QJL"))
-from run_base_bundling import arguments
+from run_base_bundling import arguments, write_report
 
 
 class TinyExpert(nn.Module):
@@ -60,6 +60,21 @@ def test_explicit_eval_variant_and_legacy_case_alias():
     with pytest.raises(SystemExit):
         arguments(["--mode", "eval", "--case", "A",
                    "--eval-variant", "base-plus-lowrank"])
+
+
+def test_report_uses_configured_rank(tmp_path):
+    (tmp_path / "per_expert.csv").write_text(
+        "residual_frobenius_ratio,pre_bundle_bit_agreement,"
+        "post_bundle_bit_preservation,energy_rank_512,energy_rank_1024,"
+        "optimal_weight_error_rank_512,optimal_weight_error_rank_1024,"
+        "bf16_factor_weight_error\n"
+        "1.1,0.5,0.75,0.7,0.96,0.6,0.22,0.21\n")
+    write_report(tmp_path, {"rank": 1024, "layers": [0],
+                            "qjl_d_factor": 2}, [])
+    report = (tmp_path / "REPORT.md").read_text()
+    assert "Rank-1024 FP32 residual energy retention: 0.960000" in report
+    assert "Optimal rank-1024 weight error: 0.220000" in report
+    assert "Rank-512 FP32" not in report
 
 
 @pytest.fixture(scope="module")

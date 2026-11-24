@@ -1,0 +1,10 @@
+{
+  "shared_sketch_bytes": 1557135360,
+  "row_norm_bytes": 28016640,
+  "lowrank_residual_bytes": 30576476160,
+  "actual_checkpoint_bytes": 32165998461,
+  "metadata_and_container_bytes": 4370301,
+  "routed_weight_count": 12457082880,
+  "effective_bpw": 20.657162689440177,
+  "bf16_storage_reduction": -0.2910726680900111
+}
