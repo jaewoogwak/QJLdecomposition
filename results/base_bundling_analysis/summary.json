@@ -1,0 +1,762 @@
+{
+  "pair_rows": 15930,
+  "base_rows": 286740,
+  "residual_rows": 160704,
+  "correlation_rows": 37260,
+  "grouping_rows": 648,
+  "best_grouping_by_heldout_error": [
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.640027450521787,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.5147370333472888,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.7165199518203735,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.0141810725132625,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.7024316678444544,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 0.958470223347346,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.8268847783406575,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.7651143034299215,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "gate",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.8559826880693435,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.6693353593349457,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.5574768597880999,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.7851841598749161,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.111430291334788,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.7474326799313228,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 1.0312564144531886,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.8570852994918823,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.8012968699137369,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "up",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.9033334652582804,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.6987287918726603,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.6226691385110219,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.8671852191289265,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.2270313501358032,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.8007234364748002,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 1.1128763377666473,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.8912273993094763,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.8409096648295721,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 128,
+      "layer": 12,
+      "projection": "down",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.8897656559944153,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.640027450521787,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.4914432550470034,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.7165199518203735,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.0141810725132625,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.6872202763954799,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 0.958470223347346,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.8262833674748739,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.7645843724409739,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "gate",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.8527430246273676,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.6691811641057333,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.5322817633549373,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.7851841598749161,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.111430291334788,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.7321699808041254,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 1.0310978879531225,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.8565618127584458,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.8007995297511419,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "up",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.8999070247014364,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.6986341814200083,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.6010801171263059,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.8671852191289265,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.2270313501358032,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.7891938259204229,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 1.1128474692503612,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.8908537516991297,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.8406127681334813,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 256,
+      "layer": 12,
+      "projection": "down",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.8803767323493957,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.6398288478453954,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.4754968489209811,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.7165199518203735,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.0141810725132625,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.6766612440347671,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 0.958308466275533,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.8254923244317373,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.7638165225585302,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "gate",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.8480585753917694,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.669102190931638,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.5149624009927114,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.7851841598749161,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.111430291334788,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.7217991292476654,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 1.0308638513088226,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.855814927816391,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.7999762068192164,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "up",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.8953201711177826,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "A",
+      "criterion": "base_error",
+      "heldout_error": 0.6985535403092702,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "B",
+      "criterion": "base_error",
+      "heldout_error": 0.5850738565127055,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "C2",
+      "criterion": "random",
+      "heldout_error": 0.8671852191289265,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "C1",
+      "criterion": "random",
+      "heldout_error": 1.2270313501358032,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "D",
+      "criterion": "base_error",
+      "heldout_error": 0.7805958926677704,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "E",
+      "criterion": "base_error",
+      "heldout_error": 1.112691084543864,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "F",
+      "criterion": "base_error",
+      "heldout_error": 0.8905579696098963,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "G",
+      "criterion": "base_error",
+      "heldout_error": 0.8403290241956711,
+      "matching_scope": "all_pairs"
+    },
+    {
+      "calibration_size": 512,
+      "layer": 12,
+      "projection": "down",
+      "case": "H",
+      "criterion": "base_error",
+      "heldout_error": 0.8753978848457337,
+      "matching_scope": "all_pairs"
+    }
+  ],
+  "stages": {
+    "calibrate": {
+      "seconds": 2820.6632185740164,
+      "peak_gpu_bytes": 30939725824
+    },
+    "similarity": {
+      "seconds": 396.2554734899895,
+      "peak_gpu_bytes": 37590933504
+    },
+    "base": {
+      "seconds": 6837.030595686985,
+      "peak_gpu_bytes": 37901580800
+    },
+    "spectrum": {
+      "seconds": 859.8548147209804,
+      "peak_gpu_bytes": 39188183552
+    },
+    "report": {
+      "seconds": 233.17710313602583,
+      "peak_gpu_bytes": 0
+    }
+  },
+  "matching_note": "joint-cost matching is candidate-restricted when spectrum-scope=representative",
+  "heldout_usage": "heldout covariance used only for final metrics; no fitting or matching"
+}

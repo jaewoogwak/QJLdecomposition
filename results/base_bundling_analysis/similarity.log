@@ -1,0 +1,11 @@
+Loading checkpoint shards:   0%|          | 0/8 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 1/8 [00:00<00:05,  1.20it/s]Loading checkpoint shards:  25%|██▌       | 2/8 [00:01<00:05,  1.11it/s]Loading checkpoint shards:  38%|███▊      | 3/8 [00:02<00:04,  1.10it/s]Loading checkpoint shards:  50%|█████     | 4/8 [00:03<00:03,  1.10it/s]Loading checkpoint shards:  62%|██████▎   | 5/8 [00:04<00:02,  1.02it/s]Loading checkpoint shards:  75%|███████▌  | 6/8 [00:05<00:01,  1.03it/s]Loading checkpoint shards:  88%|████████▊ | 7/8 [00:06<00:00,  1.04it/s]Loading checkpoint shards: 100%|██████████| 8/8 [00:06<00:00,  1.40it/s]Loading checkpoint shards: 100%|██████████| 8/8 [00:06<00:00,  1.18it/s]
+[similarity] 128 layer 12 gate: resumed
+[similarity] 128 layer 12 up: 1770 pairs
+[similarity] 128 layer 12 down: 1770 pairs
+[similarity] 256 layer 12 gate: 1770 pairs
+[similarity] 256 layer 12 up: 1770 pairs
+[similarity] 256 layer 12 down: 1770 pairs
+[similarity] 512 layer 12 gate: 1770 pairs
+[similarity] 512 layer 12 up: 1770 pairs
+[similarity] 512 layer 12 down: 1770 pairs
+[similarity] complete: {'seconds': 396.2554734899895, 'peak_gpu_bytes': 37590933504}

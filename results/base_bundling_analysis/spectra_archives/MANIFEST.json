@@ -1,0 +1,47 @@
+{
+  "s128_l12_down.tar.gz": {
+    "files": 2704,
+    "bytes": 11532039,
+    "sha256": "30ee303ca73376e00da65f9d4ca381550e3b3e26bdbccf3bf83be9e060bbac3a"
+  },
+  "s128_l12_gate.tar.gz": {
+    "files": 2368,
+    "bytes": 10077239,
+    "sha256": "d6efd48595ae532141d57052a99af098154bcf02a1f60f371ba8bb178514ed40"
+  },
+  "s128_l12_up.tar.gz": {
+    "files": 2592,
+    "bytes": 11028888,
+    "sha256": "66dd01b0b4c6976825b30e0afc9323be85046094de6fc871616cf1fb321d7973"
+  },
+  "s256_l12_down.tar.gz": {
+    "files": 2704,
+    "bytes": 11532757,
+    "sha256": "4fe21fcce12ef0ab570b575a3a569ee069f84493649ac8a2b122c0f410096937"
+  },
+  "s256_l12_gate.tar.gz": {
+    "files": 2368,
+    "bytes": 10075634,
+    "sha256": "a15b70048d631bcc8f63b64b0bb7e137954f8e5e5eb63dc577993666cd2051e5"
+  },
+  "s256_l12_up.tar.gz": {
+    "files": 2592,
+    "bytes": 11028009,
+    "sha256": "89dc85970d0a855622385dbb8a425cc44bebd28bc61392fdc7bc9c01f42a4eb0"
+  },
+  "s512_l12_down.tar.gz": {
+    "files": 2732,
+    "bytes": 11651225,
+    "sha256": "6995f4e156fdae4fa8b88f2eb0212d4dfccc1985a55df8ef10d68c362e6cddd1"
+  },
+  "s512_l12_gate.tar.gz": {
+    "files": 2368,
+    "bytes": 10075159,
+    "sha256": "c7a38e95a4a72cb42d6941b69ca071b7d221a0d11feac846d30dbf2bb1e636b4"
+  },
+  "s512_l12_up.tar.gz": {
+    "files": 2564,
+    "bytes": 10908542,
+    "sha256": "10ca4c23e4b0bb59bb88d2b53f5faf34244ccd1cc1bad397df1c3429c2e78230"
+  }
+}

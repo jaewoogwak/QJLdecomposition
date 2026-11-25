@@ -1,0 +1,164 @@
+Loading checkpoint shards:   0%|          | 0/8 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 1/8 [00:00<00:05,  1.29it/s]Loading checkpoint shards:  25%|██▌       | 2/8 [00:01<00:05,  1.17it/s]Loading checkpoint shards:  38%|███▊      | 3/8 [00:02<00:04,  1.13it/s]Loading checkpoint shards:  50%|█████     | 4/8 [00:03<00:03,  1.16it/s]Loading checkpoint shards:  62%|██████▎   | 5/8 [00:04<00:02,  1.22it/s]Loading checkpoint shards:  75%|███████▌  | 6/8 [00:05<00:01,  1.16it/s]Loading checkpoint shards:  88%|████████▊ | 7/8 [00:05<00:00,  1.17it/s]Loading checkpoint shards: 100%|██████████| 8/8 [00:06<00:00,  1.56it/s]Loading checkpoint shards: 100%|██████████| 8/8 [00:06<00:00,  1.30it/s]
+[base] 128 layer 12 gate: 100/1770 pairs, ETA 14.1 min
+[base] 128 layer 12 gate: 200/1770 pairs, ETA 12.7 min
+[base] 128 layer 12 gate: 300/1770 pairs, ETA 11.8 min
+[base] 128 layer 12 gate: 400/1770 pairs, ETA 10.8 min
+[base] 128 layer 12 gate: 500/1770 pairs, ETA 10.1 min
+[base] 128 layer 12 gate: 600/1770 pairs, ETA 9.4 min
+[base] 128 layer 12 gate: 700/1770 pairs, ETA 8.7 min
+[base] 128 layer 12 gate: 800/1770 pairs, ETA 7.8 min
+[base] 128 layer 12 gate: 900/1770 pairs, ETA 7.0 min
+[base] 128 layer 12 gate: 1000/1770 pairs, ETA 6.2 min
+[base] 128 layer 12 gate: 1100/1770 pairs, ETA 5.4 min
+[base] 128 layer 12 gate: 1200/1770 pairs, ETA 4.6 min
+[base] 128 layer 12 gate: 1300/1770 pairs, ETA 3.8 min
+[base] 128 layer 12 gate: 1400/1770 pairs, ETA 3.0 min
+[base] 128 layer 12 gate: 1500/1770 pairs, ETA 2.2 min
+[base] 128 layer 12 gate: 1600/1770 pairs, ETA 1.4 min
+[base] 128 layer 12 gate: 1700/1770 pairs, ETA 0.6 min
+[base] 128 layer 12 gate: 31860 expert cases
+[base] 128 layer 12 up: 100/1770 pairs, ETA 14.1 min
+[base] 128 layer 12 up: 200/1770 pairs, ETA 12.8 min
+[base] 128 layer 12 up: 300/1770 pairs, ETA 12.1 min
+[base] 128 layer 12 up: 400/1770 pairs, ETA 11.3 min
+[base] 128 layer 12 up: 500/1770 pairs, ETA 10.6 min
+[base] 128 layer 12 up: 600/1770 pairs, ETA 9.7 min
+[base] 128 layer 12 up: 700/1770 pairs, ETA 8.9 min
+[base] 128 layer 12 up: 800/1770 pairs, ETA 8.0 min
+[base] 128 layer 12 up: 900/1770 pairs, ETA 7.0 min
+[base] 128 layer 12 up: 1000/1770 pairs, ETA 6.1 min
+[base] 128 layer 12 up: 1100/1770 pairs, ETA 5.2 min
+[base] 128 layer 12 up: 1200/1770 pairs, ETA 4.4 min
+[base] 128 layer 12 up: 1300/1770 pairs, ETA 3.6 min
+[base] 128 layer 12 up: 1400/1770 pairs, ETA 2.8 min
+[base] 128 layer 12 up: 1500/1770 pairs, ETA 2.1 min
+[base] 128 layer 12 up: 1600/1770 pairs, ETA 1.3 min
+[base] 128 layer 12 up: 1700/1770 pairs, ETA 0.5 min
+[base] 128 layer 12 up: 31860 expert cases
+[base] 128 layer 12 down: 100/1770 pairs, ETA 12.5 min
+[base] 128 layer 12 down: 200/1770 pairs, ETA 11.7 min
+[base] 128 layer 12 down: 300/1770 pairs, ETA 10.9 min
+[base] 128 layer 12 down: 400/1770 pairs, ETA 10.1 min
+[base] 128 layer 12 down: 500/1770 pairs, ETA 9.3 min
+[base] 128 layer 12 down: 600/1770 pairs, ETA 8.5 min
+[base] 128 layer 12 down: 700/1770 pairs, ETA 7.9 min
+[base] 128 layer 12 down: 800/1770 pairs, ETA 7.2 min
+[base] 128 layer 12 down: 900/1770 pairs, ETA 6.4 min
+[base] 128 layer 12 down: 1000/1770 pairs, ETA 5.7 min
+[base] 128 layer 12 down: 1100/1770 pairs, ETA 5.0 min
+[base] 128 layer 12 down: 1200/1770 pairs, ETA 4.2 min
+[base] 128 layer 12 down: 1300/1770 pairs, ETA 3.5 min
+[base] 128 layer 12 down: 1400/1770 pairs, ETA 2.8 min
+[base] 128 layer 12 down: 1500/1770 pairs, ETA 2.0 min
+[base] 128 layer 12 down: 1600/1770 pairs, ETA 1.3 min
+[base] 128 layer 12 down: 1700/1770 pairs, ETA 0.5 min
+[base] 128 layer 12 down: 31860 expert cases
+[base] 256 layer 12 gate: 100/1770 pairs, ETA 12.9 min
+[base] 256 layer 12 gate: 200/1770 pairs, ETA 12.4 min
+[base] 256 layer 12 gate: 300/1770 pairs, ETA 11.6 min
+[base] 256 layer 12 gate: 400/1770 pairs, ETA 10.6 min
+[base] 256 layer 12 gate: 500/1770 pairs, ETA 9.8 min
+[base] 256 layer 12 gate: 600/1770 pairs, ETA 9.1 min
+[base] 256 layer 12 gate: 700/1770 pairs, ETA 8.4 min
+[base] 256 layer 12 gate: 800/1770 pairs, ETA 7.5 min
+[base] 256 layer 12 gate: 900/1770 pairs, ETA 6.7 min
+[base] 256 layer 12 gate: 1000/1770 pairs, ETA 5.8 min
+[base] 256 layer 12 gate: 1100/1770 pairs, ETA 5.1 min
+[base] 256 layer 12 gate: 1200/1770 pairs, ETA 4.4 min
+[base] 256 layer 12 gate: 1300/1770 pairs, ETA 3.6 min
+[base] 256 layer 12 gate: 1400/1770 pairs, ETA 2.8 min
+[base] 256 layer 12 gate: 1500/1770 pairs, ETA 2.0 min
+[base] 256 layer 12 gate: 1600/1770 pairs, ETA 1.3 min
+[base] 256 layer 12 gate: 1700/1770 pairs, ETA 0.5 min
+[base] 256 layer 12 gate: 31860 expert cases
+[base] 256 layer 12 up: 100/1770 pairs, ETA 11.4 min
+[base] 256 layer 12 up: 200/1770 pairs, ETA 10.8 min
+[base] 256 layer 12 up: 300/1770 pairs, ETA 10.1 min
+[base] 256 layer 12 up: 400/1770 pairs, ETA 9.3 min
+[base] 256 layer 12 up: 500/1770 pairs, ETA 8.6 min
+[base] 256 layer 12 up: 600/1770 pairs, ETA 7.9 min
+[base] 256 layer 12 up: 700/1770 pairs, ETA 7.2 min
+[base] 256 layer 12 up: 800/1770 pairs, ETA 6.6 min
+[base] 256 layer 12 up: 900/1770 pairs, ETA 6.0 min
+[base] 256 layer 12 up: 1000/1770 pairs, ETA 5.4 min
+[base] 256 layer 12 up: 1100/1770 pairs, ETA 4.6 min
+[base] 256 layer 12 up: 1200/1770 pairs, ETA 3.9 min
+[base] 256 layer 12 up: 1300/1770 pairs, ETA 3.3 min
+[base] 256 layer 12 up: 1400/1770 pairs, ETA 2.6 min
+[base] 256 layer 12 up: 1500/1770 pairs, ETA 1.9 min
+[base] 256 layer 12 up: 1600/1770 pairs, ETA 1.2 min
+[base] 256 layer 12 up: 1700/1770 pairs, ETA 0.5 min
+[base] 256 layer 12 up: 31860 expert cases
+[base] 256 layer 12 down: 100/1770 pairs, ETA 11.8 min
+[base] 256 layer 12 down: 200/1770 pairs, ETA 10.9 min
+[base] 256 layer 12 down: 300/1770 pairs, ETA 10.4 min
+[base] 256 layer 12 down: 400/1770 pairs, ETA 9.7 min
+[base] 256 layer 12 down: 500/1770 pairs, ETA 8.8 min
+[base] 256 layer 12 down: 600/1770 pairs, ETA 8.0 min
+[base] 256 layer 12 down: 700/1770 pairs, ETA 7.2 min
+[base] 256 layer 12 down: 800/1770 pairs, ETA 6.5 min
+[base] 256 layer 12 down: 900/1770 pairs, ETA 5.8 min
+[base] 256 layer 12 down: 1000/1770 pairs, ETA 5.1 min
+[base] 256 layer 12 down: 1100/1770 pairs, ETA 4.5 min
+[base] 256 layer 12 down: 1200/1770 pairs, ETA 3.9 min
+[base] 256 layer 12 down: 1300/1770 pairs, ETA 3.2 min
+[base] 256 layer 12 down: 1400/1770 pairs, ETA 2.5 min
+[base] 256 layer 12 down: 1500/1770 pairs, ETA 1.8 min
+[base] 256 layer 12 down: 1600/1770 pairs, ETA 1.1 min
+[base] 256 layer 12 down: 1700/1770 pairs, ETA 0.5 min
+[base] 256 layer 12 down: 31860 expert cases
+[base] 512 layer 12 gate: 100/1770 pairs, ETA 8.4 min
+[base] 512 layer 12 gate: 200/1770 pairs, ETA 7.9 min
+[base] 512 layer 12 gate: 300/1770 pairs, ETA 7.4 min
+[base] 512 layer 12 gate: 400/1770 pairs, ETA 7.0 min
+[base] 512 layer 12 gate: 500/1770 pairs, ETA 6.7 min
+[base] 512 layer 12 gate: 600/1770 pairs, ETA 6.2 min
+[base] 512 layer 12 gate: 700/1770 pairs, ETA 5.8 min
+[base] 512 layer 12 gate: 800/1770 pairs, ETA 5.2 min
+[base] 512 layer 12 gate: 900/1770 pairs, ETA 4.6 min
+[base] 512 layer 12 gate: 1000/1770 pairs, ETA 4.1 min
+[base] 512 layer 12 gate: 1100/1770 pairs, ETA 3.6 min
+[base] 512 layer 12 gate: 1200/1770 pairs, ETA 3.1 min
+[base] 512 layer 12 gate: 1300/1770 pairs, ETA 2.5 min
+[base] 512 layer 12 gate: 1400/1770 pairs, ETA 2.0 min
+[base] 512 layer 12 gate: 1500/1770 pairs, ETA 1.4 min
+[base] 512 layer 12 gate: 1600/1770 pairs, ETA 0.9 min
+[base] 512 layer 12 gate: 1700/1770 pairs, ETA 0.4 min
+[base] 512 layer 12 gate: 31860 expert cases
+[base] 512 layer 12 up: 100/1770 pairs, ETA 11.0 min
+[base] 512 layer 12 up: 200/1770 pairs, ETA 10.6 min
+[base] 512 layer 12 up: 300/1770 pairs, ETA 10.0 min
+[base] 512 layer 12 up: 400/1770 pairs, ETA 9.6 min
+[base] 512 layer 12 up: 500/1770 pairs, ETA 9.1 min
+[base] 512 layer 12 up: 600/1770 pairs, ETA 8.4 min
+[base] 512 layer 12 up: 700/1770 pairs, ETA 7.7 min
+[base] 512 layer 12 up: 800/1770 pairs, ETA 6.9 min
+[base] 512 layer 12 up: 900/1770 pairs, ETA 6.3 min
+[base] 512 layer 12 up: 1000/1770 pairs, ETA 5.6 min
+[base] 512 layer 12 up: 1100/1770 pairs, ETA 4.9 min
+[base] 512 layer 12 up: 1200/1770 pairs, ETA 4.2 min
+[base] 512 layer 12 up: 1300/1770 pairs, ETA 3.4 min
+[base] 512 layer 12 up: 1400/1770 pairs, ETA 2.7 min
+[base] 512 layer 12 up: 1500/1770 pairs, ETA 2.0 min
+[base] 512 layer 12 up: 1600/1770 pairs, ETA 1.2 min
+[base] 512 layer 12 up: 1700/1770 pairs, ETA 0.5 min
+[base] 512 layer 12 up: 31860 expert cases
+[base] 512 layer 12 down: 100/1770 pairs, ETA 10.9 min
+[base] 512 layer 12 down: 200/1770 pairs, ETA 10.4 min
+[base] 512 layer 12 down: 300/1770 pairs, ETA 9.6 min
+[base] 512 layer 12 down: 400/1770 pairs, ETA 9.0 min
+[base] 512 layer 12 down: 500/1770 pairs, ETA 8.5 min
+[base] 512 layer 12 down: 600/1770 pairs, ETA 7.9 min
+[base] 512 layer 12 down: 700/1770 pairs, ETA 7.3 min
+[base] 512 layer 12 down: 800/1770 pairs, ETA 6.7 min
+[base] 512 layer 12 down: 900/1770 pairs, ETA 6.1 min
+[base] 512 layer 12 down: 1000/1770 pairs, ETA 5.4 min
+[base] 512 layer 12 down: 1100/1770 pairs, ETA 4.7 min
+[base] 512 layer 12 down: 1200/1770 pairs, ETA 4.0 min
+[base] 512 layer 12 down: 1300/1770 pairs, ETA 3.4 min
+[base] 512 layer 12 down: 1400/1770 pairs, ETA 2.7 min
+[base] 512 layer 12 down: 1500/1770 pairs, ETA 1.9 min
+[base] 512 layer 12 down: 1600/1770 pairs, ETA 1.2 min
+[base] 512 layer 12 down: 1700/1770 pairs, ETA 0.5 min
+[base] 512 layer 12 down: 31860 expert cases
+[base] complete: {'seconds': 6837.030595686985, 'peak_gpu_bytes': 37901580800}

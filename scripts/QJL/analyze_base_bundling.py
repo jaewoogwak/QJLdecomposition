@@ -111,7 +111,7 @@ def write_csv(path, rows):
     fields = sorted(set().union(*(row.keys() for row in rows)))
     tmp = path.with_name(path.name + f".tmp{os.getpid()}")
     with tmp.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     os.replace(tmp, path)
@@ -158,7 +158,7 @@ def append_csv(path, rows):
     with path.open(newline="") as handle:
         fields = next(csv.reader(handle))
     with path.open("a", newline="") as handle:
-        csv.DictWriter(handle, fieldnames=fields).writerows(rows)
+        csv.DictWriter(handle, fieldnames=fields, lineterminator="\n").writerows(rows)
 
 
 def file_fingerprint(path):

@@ -1,0 +1,155 @@
+Loading checkpoint shards:   0%|          | 0/8 [00:00<?, ?it/s]Loading checkpoint shards:  12%|█▎        | 1/8 [00:00<00:06,  1.01it/s]Loading checkpoint shards:  25%|██▌       | 2/8 [00:01<00:04,  1.23it/s]Loading checkpoint shards:  38%|███▊      | 3/8 [00:02<00:03,  1.31it/s]Loading checkpoint shards:  50%|█████     | 4/8 [00:03<00:03,  1.23it/s]Loading checkpoint shards:  62%|██████▎   | 5/8 [00:04<00:02,  1.20it/s]Loading checkpoint shards:  75%|███████▌  | 6/8 [00:04<00:01,  1.25it/s]Loading checkpoint shards:  88%|████████▊ | 7/8 [00:05<00:00,  1.19it/s]Loading checkpoint shards: 100%|██████████| 8/8 [00:06<00:00,  1.56it/s]Loading checkpoint shards: 100%|██████████| 8/8 [00:06<00:00,  1.33it/s]
+[spectrum] 128 layer 12 gate: 5/76 pairs, ETA 1.5 min
+[spectrum] 128 layer 12 gate: 10/76 pairs, ETA 1.3 min
+[spectrum] 128 layer 12 gate: 15/76 pairs, ETA 1.2 min
+[spectrum] 128 layer 12 gate: 20/76 pairs, ETA 1.1 min
+[spectrum] 128 layer 12 gate: 25/76 pairs, ETA 1.0 min
+[spectrum] 128 layer 12 gate: 30/76 pairs, ETA 0.9 min
+[spectrum] 128 layer 12 gate: 35/76 pairs, ETA 0.8 min
+[spectrum] 128 layer 12 gate: 40/76 pairs, ETA 0.7 min
+[spectrum] 128 layer 12 gate: 45/76 pairs, ETA 0.6 min
+[spectrum] 128 layer 12 gate: 50/76 pairs, ETA 0.5 min
+[spectrum] 128 layer 12 gate: 55/76 pairs, ETA 0.4 min
+[spectrum] 128 layer 12 gate: 60/76 pairs, ETA 0.3 min
+[spectrum] 128 layer 12 gate: 65/76 pairs, ETA 0.2 min
+[spectrum] 128 layer 12 gate: 70/76 pairs, ETA 0.1 min
+[spectrum] 128 layer 12 gate: 75/76 pairs, ETA 0.0 min
+[spectrum] 128 layer 12 gate: 16416 rank records
+[spectrum] 128 layer 12 up: 5/84 pairs, ETA 1.6 min
+[spectrum] 128 layer 12 up: 10/84 pairs, ETA 1.5 min
+[spectrum] 128 layer 12 up: 15/84 pairs, ETA 1.4 min
+[spectrum] 128 layer 12 up: 20/84 pairs, ETA 1.3 min
+[spectrum] 128 layer 12 up: 25/84 pairs, ETA 1.1 min
+[spectrum] 128 layer 12 up: 30/84 pairs, ETA 1.0 min
+[spectrum] 128 layer 12 up: 35/84 pairs, ETA 0.9 min
+[spectrum] 128 layer 12 up: 40/84 pairs, ETA 0.8 min
+[spectrum] 128 layer 12 up: 45/84 pairs, ETA 0.7 min
+[spectrum] 128 layer 12 up: 50/84 pairs, ETA 0.6 min
+[spectrum] 128 layer 12 up: 55/84 pairs, ETA 0.6 min
+[spectrum] 128 layer 12 up: 60/84 pairs, ETA 0.5 min
+[spectrum] 128 layer 12 up: 65/84 pairs, ETA 0.4 min
+[spectrum] 128 layer 12 up: 70/84 pairs, ETA 0.3 min
+[spectrum] 128 layer 12 up: 75/84 pairs, ETA 0.2 min
+[spectrum] 128 layer 12 up: 80/84 pairs, ETA 0.1 min
+[spectrum] 128 layer 12 up: 18144 rank records
+[spectrum] 128 layer 12 down: 5/88 pairs, ETA 1.6 min
+[spectrum] 128 layer 12 down: 10/88 pairs, ETA 1.6 min
+[spectrum] 128 layer 12 down: 15/88 pairs, ETA 1.5 min
+[spectrum] 128 layer 12 down: 20/88 pairs, ETA 1.4 min
+[spectrum] 128 layer 12 down: 25/88 pairs, ETA 1.2 min
+[spectrum] 128 layer 12 down: 30/88 pairs, ETA 1.1 min
+[spectrum] 128 layer 12 down: 35/88 pairs, ETA 1.0 min
+[spectrum] 128 layer 12 down: 40/88 pairs, ETA 0.9 min
+[spectrum] 128 layer 12 down: 45/88 pairs, ETA 0.8 min
+[spectrum] 128 layer 12 down: 50/88 pairs, ETA 0.7 min
+[spectrum] 128 layer 12 down: 55/88 pairs, ETA 0.6 min
+[spectrum] 128 layer 12 down: 60/88 pairs, ETA 0.5 min
+[spectrum] 128 layer 12 down: 65/88 pairs, ETA 0.4 min
+[spectrum] 128 layer 12 down: 70/88 pairs, ETA 0.3 min
+[spectrum] 128 layer 12 down: 75/88 pairs, ETA 0.2 min
+[spectrum] 128 layer 12 down: 80/88 pairs, ETA 0.1 min
+[spectrum] 128 layer 12 down: 85/88 pairs, ETA 0.1 min
+[spectrum] 128 layer 12 down: 19008 rank records
+[spectrum] 256 layer 12 gate: 5/76 pairs, ETA 1.4 min
+[spectrum] 256 layer 12 gate: 10/76 pairs, ETA 1.3 min
+[spectrum] 256 layer 12 gate: 15/76 pairs, ETA 1.1 min
+[spectrum] 256 layer 12 gate: 20/76 pairs, ETA 1.1 min
+[spectrum] 256 layer 12 gate: 25/76 pairs, ETA 1.0 min
+[spectrum] 256 layer 12 gate: 30/76 pairs, ETA 0.9 min
+[spectrum] 256 layer 12 gate: 35/76 pairs, ETA 0.8 min
+[spectrum] 256 layer 12 gate: 40/76 pairs, ETA 0.7 min
+[spectrum] 256 layer 12 gate: 45/76 pairs, ETA 0.6 min
+[spectrum] 256 layer 12 gate: 50/76 pairs, ETA 0.5 min
+[spectrum] 256 layer 12 gate: 55/76 pairs, ETA 0.4 min
+[spectrum] 256 layer 12 gate: 60/76 pairs, ETA 0.3 min
+[spectrum] 256 layer 12 gate: 65/76 pairs, ETA 0.2 min
+[spectrum] 256 layer 12 gate: 70/76 pairs, ETA 0.1 min
+[spectrum] 256 layer 12 gate: 75/76 pairs, ETA 0.0 min
+[spectrum] 256 layer 12 gate: 16416 rank records
+[spectrum] 256 layer 12 up: 5/84 pairs, ETA 1.6 min
+[spectrum] 256 layer 12 up: 10/84 pairs, ETA 1.5 min
+[spectrum] 256 layer 12 up: 15/84 pairs, ETA 1.3 min
+[spectrum] 256 layer 12 up: 20/84 pairs, ETA 1.2 min
+[spectrum] 256 layer 12 up: 25/84 pairs, ETA 1.1 min
+[spectrum] 256 layer 12 up: 30/84 pairs, ETA 1.0 min
+[spectrum] 256 layer 12 up: 35/84 pairs, ETA 0.9 min
+[spectrum] 256 layer 12 up: 40/84 pairs, ETA 0.8 min
+[spectrum] 256 layer 12 up: 45/84 pairs, ETA 0.7 min
+[spectrum] 256 layer 12 up: 50/84 pairs, ETA 0.6 min
+[spectrum] 256 layer 12 up: 55/84 pairs, ETA 0.5 min
+[spectrum] 256 layer 12 up: 60/84 pairs, ETA 0.4 min
+[spectrum] 256 layer 12 up: 65/84 pairs, ETA 0.4 min
+[spectrum] 256 layer 12 up: 70/84 pairs, ETA 0.3 min
+[spectrum] 256 layer 12 up: 75/84 pairs, ETA 0.2 min
+[spectrum] 256 layer 12 up: 80/84 pairs, ETA 0.1 min
+[spectrum] 256 layer 12 up: 18144 rank records
+[spectrum] 256 layer 12 down: 5/88 pairs, ETA 1.7 min
+[spectrum] 256 layer 12 down: 10/88 pairs, ETA 1.6 min
+[spectrum] 256 layer 12 down: 15/88 pairs, ETA 1.5 min
+[spectrum] 256 layer 12 down: 20/88 pairs, ETA 1.3 min
+[spectrum] 256 layer 12 down: 25/88 pairs, ETA 1.2 min
+[spectrum] 256 layer 12 down: 30/88 pairs, ETA 1.1 min
+[spectrum] 256 layer 12 down: 35/88 pairs, ETA 1.0 min
+[spectrum] 256 layer 12 down: 40/88 pairs, ETA 0.9 min
+[spectrum] 256 layer 12 down: 45/88 pairs, ETA 0.8 min
+[spectrum] 256 layer 12 down: 50/88 pairs, ETA 0.7 min
+[spectrum] 256 layer 12 down: 55/88 pairs, ETA 0.6 min
+[spectrum] 256 layer 12 down: 60/88 pairs, ETA 0.5 min
+[spectrum] 256 layer 12 down: 65/88 pairs, ETA 0.4 min
+[spectrum] 256 layer 12 down: 70/88 pairs, ETA 0.3 min
+[spectrum] 256 layer 12 down: 75/88 pairs, ETA 0.2 min
+[spectrum] 256 layer 12 down: 80/88 pairs, ETA 0.1 min
+[spectrum] 256 layer 12 down: 85/88 pairs, ETA 0.1 min
+[spectrum] 256 layer 12 down: 19008 rank records
+[spectrum] 512 layer 12 gate: 5/76 pairs, ETA 1.4 min
+[spectrum] 512 layer 12 gate: 10/76 pairs, ETA 1.2 min
+[spectrum] 512 layer 12 gate: 15/76 pairs, ETA 1.1 min
+[spectrum] 512 layer 12 gate: 20/76 pairs, ETA 1.0 min
+[spectrum] 512 layer 12 gate: 25/76 pairs, ETA 0.9 min
+[spectrum] 512 layer 12 gate: 30/76 pairs, ETA 0.9 min
+[spectrum] 512 layer 12 gate: 35/76 pairs, ETA 0.8 min
+[spectrum] 512 layer 12 gate: 40/76 pairs, ETA 0.7 min
+[spectrum] 512 layer 12 gate: 45/76 pairs, ETA 0.6 min
+[spectrum] 512 layer 12 gate: 50/76 pairs, ETA 0.5 min
+[spectrum] 512 layer 12 gate: 55/76 pairs, ETA 0.4 min
+[spectrum] 512 layer 12 gate: 60/76 pairs, ETA 0.3 min
+[spectrum] 512 layer 12 gate: 65/76 pairs, ETA 0.2 min
+[spectrum] 512 layer 12 gate: 70/76 pairs, ETA 0.1 min
+[spectrum] 512 layer 12 gate: 75/76 pairs, ETA 0.0 min
+[spectrum] 512 layer 12 gate: 16416 rank records
+[spectrum] 512 layer 12 up: 5/83 pairs, ETA 1.6 min
+[spectrum] 512 layer 12 up: 10/83 pairs, ETA 1.5 min
+[spectrum] 512 layer 12 up: 15/83 pairs, ETA 1.3 min
+[spectrum] 512 layer 12 up: 20/83 pairs, ETA 1.2 min
+[spectrum] 512 layer 12 up: 25/83 pairs, ETA 1.1 min
+[spectrum] 512 layer 12 up: 30/83 pairs, ETA 1.0 min
+[spectrum] 512 layer 12 up: 35/83 pairs, ETA 0.9 min
+[spectrum] 512 layer 12 up: 40/83 pairs, ETA 0.8 min
+[spectrum] 512 layer 12 up: 45/83 pairs, ETA 0.7 min
+[spectrum] 512 layer 12 up: 50/83 pairs, ETA 0.6 min
+[spectrum] 512 layer 12 up: 55/83 pairs, ETA 0.5 min
+[spectrum] 512 layer 12 up: 60/83 pairs, ETA 0.4 min
+[spectrum] 512 layer 12 up: 65/83 pairs, ETA 0.3 min
+[spectrum] 512 layer 12 up: 70/83 pairs, ETA 0.2 min
+[spectrum] 512 layer 12 up: 75/83 pairs, ETA 0.2 min
+[spectrum] 512 layer 12 up: 80/83 pairs, ETA 0.1 min
+[spectrum] 512 layer 12 up: 17928 rank records
+[spectrum] 512 layer 12 down: 5/89 pairs, ETA 1.8 min
+[spectrum] 512 layer 12 down: 10/89 pairs, ETA 1.7 min
+[spectrum] 512 layer 12 down: 15/89 pairs, ETA 1.6 min
+[spectrum] 512 layer 12 down: 20/89 pairs, ETA 1.4 min
+[spectrum] 512 layer 12 down: 25/89 pairs, ETA 1.3 min
+[spectrum] 512 layer 12 down: 30/89 pairs, ETA 1.2 min
+[spectrum] 512 layer 12 down: 35/89 pairs, ETA 1.1 min
+[spectrum] 512 layer 12 down: 40/89 pairs, ETA 0.9 min
+[spectrum] 512 layer 12 down: 45/89 pairs, ETA 0.8 min
+[spectrum] 512 layer 12 down: 50/89 pairs, ETA 0.7 min
+[spectrum] 512 layer 12 down: 55/89 pairs, ETA 0.6 min
+[spectrum] 512 layer 12 down: 60/89 pairs, ETA 0.6 min
+[spectrum] 512 layer 12 down: 65/89 pairs, ETA 0.5 min
+[spectrum] 512 layer 12 down: 70/89 pairs, ETA 0.4 min
+[spectrum] 512 layer 12 down: 75/89 pairs, ETA 0.3 min
+[spectrum] 512 layer 12 down: 80/89 pairs, ETA 0.2 min
+[spectrum] 512 layer 12 down: 85/89 pairs, ETA 0.1 min
+[spectrum] 512 layer 12 down: 19224 rank records
+[spectrum] complete: {'seconds': 859.8548147209804, 'peak_gpu_bytes': 39188183552}

@@ -1,0 +1,66 @@
+{
+  "model_path": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+  "calibration_jsonl": {
+    "path": "/home/jaewoo/QJLdecomposition/rescode/data/wikipedia-analysis-calibration.jsonl",
+    "sha256": "bd75cce7be842998634d7c1423cd4af3dc1598b008938da612bfdfaa8c7c68ab"
+  },
+  "heldout_jsonl": {
+    "path": "/home/jaewoo/QJLdecomposition/rescode/data/wikipedia-analysis-heldout.jsonl",
+    "sha256": "cd47ef4b8e3ab99622d0debdbb5f415d7c4b58f307a13aae8a85a9d55bdc60ca"
+  },
+  "layers": [
+    12
+  ],
+  "projections": [
+    "gate",
+    "up",
+    "down"
+  ],
+  "calibration_sizes": [
+    128,
+    256,
+    512
+  ],
+  "heldout_size": 128,
+  "input_ranks": [
+    32,
+    64,
+    128,
+    256,
+    512
+  ],
+  "residual_ranks": [
+    0,
+    32,
+    64,
+    128,
+    256,
+    352
+  ],
+  "qjl_d_factor": 2.0,
+  "projection_seed": 0,
+  "bundle_seed": 0,
+  "pairing_seed": 0,
+  "svd_seed": 0,
+  "svd_oversample": 8,
+  "svd_niter": 2,
+  "regularization": 1e-05,
+  "probe_limit": 32,
+  "max_length": 2048,
+  "spectrum_scope": "representative",
+  "representative_count": 5,
+  "spectrum_cases": [
+    "A",
+    "B",
+    "C2",
+    "C1",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H"
+  ],
+  "exact_representative": false,
+  "matching_rank": 128,
+  "joint_lambda": 1.0
+}

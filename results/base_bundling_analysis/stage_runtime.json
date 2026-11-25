@@ -1,0 +1,22 @@
+{
+  "calibrate": {
+    "seconds": 2820.6632185740164,
+    "peak_gpu_bytes": 30939725824
+  },
+  "similarity": {
+    "seconds": 396.2554734899895,
+    "peak_gpu_bytes": 37590933504
+  },
+  "base": {
+    "seconds": 6837.030595686985,
+    "peak_gpu_bytes": 37901580800
+  },
+  "spectrum": {
+    "seconds": 859.8548147209804,
+    "peak_gpu_bytes": 39188183552
+  },
+  "report": {
+    "seconds": 233.17710313602583,
+    "peak_gpu_bytes": 0
+  }
+}
