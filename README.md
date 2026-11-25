@@ -286,6 +286,123 @@ larger than BF16 routed weights. Results are in
 `results/base_bundling/pairwise_d2n_r1024/`; the original and Base-only
 evaluations were not repeated for this rank.
 
+## Activation-aware Base bundling analysis
+
+`scripts/QJL/analyze_base_bundling.py` is an independent analysis of the
+original model. It does not build a compressed model or run lm-eval. Input
+files are disjoint JSONL files with one `{"text": "..."}` record per
+sequence. The calibration pass uses every routed token except padding and
+saves cumulative 128/256/512-sequence snapshots; the held-out pass is
+separate. The router output, actual Gate input, and actual Down input are
+hooked during the original forward. Gate and Up share one covariance.
+
+On the analysis server, 640 Wikipedia documents have been prepared as
+`rescode/data/wikipedia-analysis-calibration.jsonl` (first 512) and
+`rescode/data/wikipedia-analysis-heldout.jsonl` (remaining 128). These are
+the shell wrapper defaults, so the staged run is:
+
+```bash
+for stage in calibrate similarity base spectrum report; do
+  STAGE="$stage" bash scripts/QJL/run_base_bundling_analysis.sh
+done
+```
+
+To use another corpus, supply `CALIBRATION_JSONL` and `HELDOUT_JSONL` as
+separate files. The repository's `scripts/RESCODE/prepare_calib_datasets.py`
+can download a Wikipedia JSONL source; split its records without overlap
+before running this analysis.
+
+```bash
+COMMON="--model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --calibration-jsonl /path/to/calibration.jsonl \
+  --heldout-jsonl /path/to/heldout.jsonl \
+  --output-dir results/base_bundling_analysis --layers 12 --resume"
+.venv/bin/python scripts/QJL/analyze_base_bundling.py --stage calibrate $COMMON
+.venv/bin/python scripts/QJL/analyze_base_bundling.py --stage similarity $COMMON
+.venv/bin/python scripts/QJL/analyze_base_bundling.py --stage base $COMMON
+.venv/bin/python scripts/QJL/analyze_base_bundling.py --stage spectrum $COMMON \
+  --spectrum-scope representative --representative-count 5
+.venv/bin/python scripts/QJL/analyze_base_bundling.py --stage report $COMMON
+```
+
+For the complete all-pair randomized spectrum analysis, run:
+
+```bash
+.venv/bin/python scripts/QJL/analyze_base_bundling.py --stage all \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --calibration-jsonl /path/to/calibration.jsonl \
+  --heldout-jsonl /path/to/heldout.jsonl \
+  --output-dir results/base_bundling_analysis_all \
+  --layers 12 --projections gate,up,down \
+  --calibration-sizes 128,256,512 --heldout-size 128 \
+  --input-ranks 32,64,128,256,512 \
+  --residual-ranks 0,32,64,128,256,352 \
+  --qjl-d-factor 2 --spectrum-scope all --resume
+```
+
+The shell wrapper accepts the same options as environment variables, for
+example `STAGE=all CALIBRATION_JSONL=/path/to/cal.jsonl
+HELDOUT_JSONL=/path/to/held.jsonl bash scripts/QJL/run_base_bundling_analysis.sh`.
+CLI options passed after the shell script override its defaults.
+
+Cases A/B are dense sharing (arithmetic mean and regularized covariance
+optimum), C2/C1 are individual binary D=2n/D=n, D binarizes the covariance
+optimum, E is majority voting with original row norms, F optimizes the
+majority row scales, G uses magnitude-aware voting and optimized scales, and
+H uses `sign(W_i C_i G + W_j C_j G)` with optimized scales. The C1 projection
+uses the first n columns of the same Gaussian matrix as C2. Covariance
+errors use `Tr[(W−B)C(W−B)ᵀ] / Tr[WCWᵀ]`; row scales minimize the same
+quadratic independently. Case B uses a positive trace-scaled ridge to make
+the solve stable. Activation-aware low-rank factors use an inverse square
+root with the configured ridge. BF16 factor errors are measured after
+factor quantization. Randomized singular energy is labeled as an estimate;
+`--exact-representative` adds exact SVD for selected pairs only.
+
+`config.json` records seeds, data hashes, layers, ranks, and analysis
+settings. `cache/` contains routed moments and per-stage CSV files; calibration
+resumes from the most recent snapshot, and numeric stages resume after each
+completed pair. The top-level outputs are `pairwise_metrics.csv`, `base_metrics.csv`,
+`residual_metrics.csv`, `grouping_summary.csv`, `correlation.csv`,
+`summary.json`, `REPORT.md`, `stage_runtime.json`, spectrum NPZ files, and
+plots. In representative spectrum mode, joint-cost matching is explicitly
+candidate-restricted and includes a seeded random perfect matching as a
+feasibility control. Held-out statistics are used only after matching.
+
+The Base stage caches each expert's `WC` and weight energy, then evaluates
+error and cosine from shared quadratic terms. The spectrum stage computes
+all rank-prefix covariance errors from low-rank Gram matrices; it does not
+repeat a full weight-by-covariance product for every rank. Individual C1/C2
+residual spectra are reused across pairs. Base and spectrum logs print
+pair-level progress and an ETA. These optimizations preserve the FP32
+covariance definitions and BF16 factor application used by the analysis.
+
+Minimal verification on the server: `tests/test_base_bundle_analysis.py`
+passed **5 synthetic tests**, including hook padding and snapshot checks,
+covariance errors, binary ties, SVD and matching, and CSV/report generation.
+The GPU path also checks seeded majority/magnitude-aware ties and the
+complete synthetic Base A-H construction. Together with the existing
+residual-bundle tests, **13 tests** passed after the GPU tie-device fix.
+`analyze_base_bundling.py --help` and Python compilation also passed. The
+actual Qwen calibration, all-pair analysis, SVD sweep, and model evaluation
+were intentionally not run for this analysis task.
+
+The later layer-12 representative-pair run is published under
+`results/base_bundling_analysis/`. Its CSV, JSON, plots, and report are
+versioned. The 22,992 individual spectrum NPZ files are stored in nine
+`spectra_archives/*.tar.gz` archives (one per calibration size and projection);
+their hashes and member counts are in `spectra_archives/MANIFEST.json`. To
+restore the paths referenced by `residual_metrics.csv`, run:
+
+```bash
+mkdir -p results/base_bundling_analysis/spectra
+for archive in results/base_bundling_analysis/spectra_archives/*.tar.gz; do
+  tar -xzf "$archive" -C results/base_bundling_analysis/spectra
+done
+```
+
+The 5.7 GB routed covariance cache and source Wikipedia JSONL files are not
+versioned. The report and tabular metrics do not require them.
+
 ## Tests and attribution
 
 ```bash

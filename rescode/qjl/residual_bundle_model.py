@@ -87,7 +87,8 @@ def bundle_signs(first, second, d, method, seed, *, projections=None, row_chunk=
         end = min(start + row_chunk, first.shape[0])
         a = unpack_signs(first[start:end], d)
         b = unpack_signs(second[start:end], d)
-        tie = torch.randint(0, 2, a.shape, generator=rng, dtype=torch.uint8).bool()
+        # Draw on CPU for seed stability, then match the packed sketch device.
+        tie = torch.randint(0, 2, a.shape, generator=rng, dtype=torch.uint8).bool().to(a.device)
         if method == "majority":
             chosen = torch.where(a == b, a, tie)
         else:
