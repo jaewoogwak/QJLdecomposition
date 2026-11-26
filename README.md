@@ -403,6 +403,99 @@ done
 The 5.7 GB routed covariance cache and source Wikipedia JSONL files are not
 versioned. The report and tabular metrics do not require them.
 
+## Activation-aware grouped QJL Base and residual ablations
+
+`scripts/QJL/run_activation_bundle.py` implements five cases using one
+calibration cache and one group map per layer/projection. A is seeded majority
+voting. B uses the covariance-projected energy and original weight row norm in
+the binary vote. C adds ordinary residual SVD to B, D adds covariance-aware
+residual SVD to B, and E refines D's conflicting bits before recomputing its
+scale and SVD. All cases use covariance-optimized, expert-specific FP32 row
+scales. Original BF16 evaluation is also available. The default group size is
+2, `D=2n`, and the default rank list is `32,64,128,256,352`. Rank 0, group
+sizes 3/4/6, random grouping, randomized SVD, and all-bit refinement can be
+selected by CLI. The default sweep evaluates A–E; Original BF16 is available
+only when `--cases original,A,B,C,D,E` is requested. The new
+`activation-aware-qjl-group-v1` checkpoint format is
+separate from the existing pairwise and residual-bundle formats.
+
+If no JSONL paths are supplied, the CLI prepares 512 calibration texts from
+WikiText-103 train and 128 held-out texts from its validation split in
+`OUTPUT_DIR/data/`. Custom `--calibration-jsonl` and `--heldout-jsonl` paths
+must be supplied together; each file must contain disjoint nonempty
+`{"text":"..."}` records. The calibration collector uses actual routed
+Gate/Up and Down inputs and excludes padding. It stores per-layer covariance
+shards on disk, along with input hashes and a source manifest; inference does
+not load those shards.
+
+```bash
+# 1. Calibration. By default, prepare disjoint WikiText-103 JSONL files.
+.venv/bin/python scripts/QJL/run_activation_bundle.py \
+  --mode calibrate \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --output-dir results/activation_bundle/d2n_k2 --layers all --resume
+
+# 2. Compression only; one A/B base and one C/D SVD per matrix for all ranks.
+.venv/bin/python scripts/QJL/run_activation_bundle.py \
+  --mode compress \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --output-dir results/activation_bundle/d2n_k2 \
+  --ranks 32,64,128,256,352 --group-size 2 --qjl-d-factor 2 --resume
+
+# 3. Evaluate a saved case/rank without recompression.
+.venv/bin/python scripts/QJL/run_activation_bundle.py \
+  --mode eval --case D --rank 352 \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --checkpoint-dir results/activation_bundle/d2n_k2/checkpoint \
+  --output-dir results/activation_bundle/d2n_k2 \
+  --backend triton --task arc_easy,arc_challenge,hellaswag,winogrande \
+  --eval-batch-size 16 --eval-limit 0
+
+# 4. Full ablation sweep: calibrate if needed, compress, evaluate and report.
+OUTPUT_DIR=results/activation_bundle/d2n_k2 RESUME=1 \
+bash scripts/QJL/run_activation_bundle_sweep.sh
+
+# Optional K/rank sweep. Each K has its own group map and checkpoint.
+for K in 2 3 4 6; do
+  GROUP_SIZE="$K" RANKS=0,32,64,128,256,352 \
+  OUTPUT_DIR="results/activation_bundle/d2n_k${K}" \
+  CACHE_DIR=results/activation_bundle/shared_cache \
+  RESUME=1 \
+  bash scripts/QJL/run_activation_bundle_sweep.sh
+done
+```
+
+Use `SKIP_EVAL=1` for a compression-only sweep, `MODE=calibrate` for only
+calibration, and `MODE=report` to rebuild tables without loading the model.
+The shell wrapper forwards additional CLI options, including `--rank`,
+`--ranks`, `--refine-sweeps`, `--refine-all-bits`, and `--svd-method randomized`.
+The Python CLI accepts `--task` with any subset of the eight supported tasks.
+
+The checkpoint directory contains `manifest.json`, `base_A_layer_N.pt`,
+`base_B_layer_N.pt`, `factor_C_rR_layer_N.pt`, `factor_D_rR_layer_N.pt`, and
+rank-specific `base_E_rR_layer_N.pt`/`factor_E_rR_layer_N.pt` shards. A/B
+have no factor shards; C/D use B's base. Each base shard contains one packed
+code per group, expert row scales and group IDs. Factors are BF16. Calibration
+covariance cache, original dense weights and dense residuals are absent from
+the compact checkpoints. `per_expert.csv`, `analysis_summary.json`,
+`spectrum_layer_N.npz`, spectrum plots, per-case `eval_metrics.json`,
+`summary.csv`/`summary.json` and `REPORT.md` contain measurements. Checkpoint
+bytes and BPW count only the shards needed for a selected case/rank; calibration
+cache and other sweep ranks are excluded. Full-model storage is estimated by
+replacing the selected routed BF16 weights in the original safetensors with
+the selected compact checkpoint bytes.
+
+On the new server, `tests/test_activation_bundle.py` passed **12 synthetic/tiny
+model tests**, including all K values, vote/tie behavior, covariance output
+error, optimized scales, FP32 SVD roots, analytical bit delta, refinement
+descent, checkpoint reload/storage sharing, a pipeline smoke test, and CUDA
+Reference/Triton parity. Existing `test_base_bundle_lowrank.py` and
+`test_residual_bundle.py` passed **13 tests**. Full Qwen compression, calibration,
+large rank sweep, and full lm-eval were not run, as requested.
+The Qwen BF16 snapshot was downloaded to the default server model path, and
+the default 512/128 WikiText-103 JSONL inputs were prepared. Neither the
+model weights nor generated JSONL files are versioned.
+
 ## Tests and attribution
 
 ```bash

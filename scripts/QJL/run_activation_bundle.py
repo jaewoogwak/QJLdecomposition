@@ -1,0 +1,589 @@
+#!/usr/bin/env python3
+"""Calibrate, compress, evaluate, and report activation-aware QJL bundles."""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import gc
+import hashlib
+import json
+import math
+import os
+import sys
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+import torch
+import torch.nn as nn
+import numpy as np
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from diagnose_codebook_base import atomic_json, select
+from rescode.evaluation import evaluate_fewshot
+from rescode.merging.eval_summary import report_eval_summary
+from rescode.qjl.activation_bundle_model import (CASES, FORMAT, checkpoint_sizes,
+                                                 compress_layer, load_checkpoint)
+from rescode.qjl.base_bundle_analysis import StreamingRoutedMoments
+from run_base_bundling import load_model, original_storage, save_csv, save_torch
+
+DEFAULT_TASKS = "arc_easy,arc_challenge,hellaswag,winogrande"
+ALL_TASKS = "winogrande,arc_easy,arc_challenge,boolq,hellaswag,mmlu,openbookqa,rte"
+
+
+def arguments(argv=None):
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--mode", choices=("calibrate", "compress", "eval", "sweep", "report"), required=True)
+    p.add_argument("--model-path", type=Path, default=Path("/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat"))
+    p.add_argument("--output-dir", type=Path, default=Path("results/activation_bundle/d2n_k2"))
+    p.add_argument("--checkpoint-dir", type=Path)
+    p.add_argument("--cache-dir", type=Path)
+    p.add_argument("--calibration-jsonl", type=Path)
+    p.add_argument("--heldout-jsonl", type=Path)
+    p.add_argument("--calibration-size", type=int, default=512)
+    p.add_argument("--heldout-size", type=int, default=128)
+    p.add_argument("--calibration-batch-size", type=int, default=1)
+    p.add_argument("--max-length", type=int, default=512)
+    p.add_argument("--layers", default="all")
+    p.add_argument("--case", choices=("original",) + CASES)
+    p.add_argument("--cases", default="A,B,C,D,E")
+    p.add_argument("--group-size", type=int, default=2)
+    p.add_argument("--pairing", choices=("random", "similarity"), default="similarity")
+    p.add_argument("--qjl-d-factor", type=float, default=2.)
+    p.add_argument("--rank", type=int, help="single compression rank or evaluation rank")
+    p.add_argument("--ranks", help="comma-separated compression ranks; default 32,64,128,256,352")
+    p.add_argument("--projection-seed", type=int, default=0)
+    p.add_argument("--pairing-seed", type=int, default=0)
+    p.add_argument("--bundle-seed", type=int, default=0)
+    p.add_argument("--ridge", type=float, default=1e-4)
+    p.add_argument("--svd-method", choices=("exact", "randomized"), default="exact")
+    p.add_argument("--refine-sweeps", type=int, default=1)
+    p.add_argument("--refine-block", type=int, default=32)
+    p.add_argument("--refine-all-bits", action="store_true")
+    p.add_argument("--row-chunk", type=int, default=64)
+    p.add_argument("--backend", choices=("triton", "reference"), default="triton")
+    p.add_argument("--task", default=DEFAULT_TASKS)
+    p.add_argument("--eval-limit", type=int, default=0)
+    p.add_argument("--eval-batch-size", type=int, default=16)
+    p.add_argument("--gpu-memory-fraction", type=float, default=.94)
+    p.add_argument("--resume", action="store_true")
+    p.add_argument("--skip-eval", action="store_true")
+    args = p.parse_args(argv)
+    args.cases = [x.strip() for x in args.cases.split(",") if x.strip()]
+    if len(set(args.cases)) != len(args.cases) or any(x not in ("original",) + CASES for x in args.cases):
+        p.error("--cases must list distinct original,A,B,C,D,E values")
+    if args.mode == "eval" and args.case is None:
+        p.error("--case is required for eval")
+    if (args.calibration_jsonl is None) != (args.heldout_jsonl is None):
+        p.error("provide both --calibration-jsonl and --heldout-jsonl, or neither")
+    args.explicit_rank = args.rank is not None
+    try:
+        args.ranks = ([int(x) for x in args.ranks.split(",")] if args.ranks else
+                      [args.rank] if args.rank is not None else [32, 64, 128, 256, 352])
+    except ValueError:
+        p.error("--ranks must be comma-separated integers")
+    args.ranks = sorted(set(args.ranks))
+    if args.rank is None:
+        args.rank = max(args.ranks)
+    if (args.group_size < 2 or 60 % args.group_size or args.qjl_d_factor <= 0 or
+            any(rank < 0 for rank in args.ranks) or args.rank < 0 or args.ridge <= 0 or
+            args.row_chunk < 1 or args.refine_block < 1 or
+            args.refine_sweeps < 0 or args.calibration_size < 1 or args.heldout_size < 1 or
+            args.eval_batch_size < 1 or args.eval_limit < 0):
+        p.error("invalid dimension, group, rank, calibration, refinement, or evaluation option")
+    args.output_dir = args.output_dir.resolve()
+    args.checkpoint_dir = (args.checkpoint_dir or args.output_dir / "checkpoint").resolve()
+    args.cache_dir = (args.cache_dir or args.output_dir / "cache").resolve()
+    return args
+
+
+def _texts(path, limit):
+    texts = []
+    with path.open() as handle:
+        for line in handle:
+            if line.strip():
+                item = json.loads(line)
+                text = item["text"]
+                if not isinstance(text, str) or not text:
+                    raise ValueError("JSONL records need a nonempty text field")
+                texts.append(text)
+            if len(texts) == limit:
+                break
+    if len(texts) != limit:
+        raise ValueError(f"{path}: expected {limit} records, found {len(texts)}")
+    return texts
+
+
+def prepare_default_texts(args):
+    """Create disjoint, deterministic WikiText-103 JSONL inputs on demand."""
+    if args.calibration_jsonl is not None:
+        return
+    from datasets import load_dataset
+    target = args.output_dir / "data"
+    target.mkdir(parents=True, exist_ok=True)
+    paths = {"calibration": target / "wikitext103_calibration.jsonl",
+             "heldout": target / "wikitext103_heldout.jsonl"}
+    for label, split, count in (("calibration", "train", args.calibration_size),
+                                ("heldout", "validation", args.heldout_size)):
+        path = paths[label]
+        if path.exists():
+            try:
+                if len(_texts(path, count)) == count:
+                    continue
+            except ValueError:
+                pass
+        temporary = path.with_suffix(".jsonl.tmp")
+        selected = 0
+        with temporary.open("w") as handle:
+            for record in load_dataset("wikitext", "wikitext-103-raw-v1",
+                                       split=split, streaming=True):
+                text = record["text"].strip()
+                if len(text.split()) < 8 or text.startswith("= "):
+                    continue
+                handle.write(json.dumps({"text": text}, ensure_ascii=False) + "\n")
+                selected += 1
+                if selected == count:
+                    break
+        if selected != count:
+            temporary.unlink(missing_ok=True)
+            raise RuntimeError(f"WikiText-103 {split} has only {selected} usable records")
+        os.replace(temporary, path)
+    args.calibration_jsonl = paths["calibration"]
+    args.heldout_jsonl = paths["heldout"]
+    atomic_json(target / "source.json", {"dataset": "wikitext-103-raw-v1",
+                                         "calibration_split": "train",
+                                         "heldout_split": "validation",
+                                         "calibration_size": args.calibration_size,
+                                         "heldout_size": args.heldout_size})
+
+
+def calibrate(args, model, tokenizer, layers):
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    calibration = _texts(args.calibration_jsonl, args.calibration_size)
+    heldout = _texts(args.heldout_jsonl, args.heldout_size)
+    fingerprints = [{hashlib.sha256(s.encode()).digest() for s in group}
+                    for group in (calibration, heldout)]
+    if fingerprints[0] & fingerprints[1]:
+        raise ValueError("calibration and held-out text overlap")
+    args.cache_dir.mkdir(parents=True, exist_ok=True)
+    source = {"model_path": str(args.model_path.resolve()), "layers": layers,
+              "calibration_jsonl": str(args.calibration_jsonl.resolve()),
+              "heldout_jsonl": str(args.heldout_jsonl.resolve()),
+              "calibration_sha256": hashlib.sha256(args.calibration_jsonl.read_bytes()).hexdigest(),
+              "heldout_sha256": hashlib.sha256(args.heldout_jsonl.read_bytes()).hexdigest(),
+              "calibration_size": args.calibration_size, "heldout_size": args.heldout_size,
+              "max_length": args.max_length}
+    source_path = args.cache_dir / "calibration_manifest.json"
+    if source_path.exists() and json.loads(source_path.read_text()) != source:
+        raise ValueError("calibration cache source/config changed; use another cache directory")
+    for split, texts in (("calibration", calibration), ("heldout", heldout)):
+        paths = [args.cache_dir / f"{split}_layer_{layer}.pt" for layer in layers]
+        if args.resume and all(path.exists() for path in paths):
+            print(f"[calibrate] {split}: resumed", flush=True)
+            continue
+        collector = StreamingRoutedMoments(model, layers, probe_limit=0)
+        try:
+            with torch.no_grad():
+                for start in range(0, len(texts), args.calibration_batch_size):
+                    batch = tokenizer(texts[start:start + args.calibration_batch_size],
+                                      padding=True, truncation=True, max_length=args.max_length,
+                                      return_tensors="pt")
+                    collector.begin_batch(batch["attention_mask"])
+                    device = next(model.parameters()).device
+                    # Routed hooks live in the backbone. Avoid constructing
+                    # the unused full-vocabulary LM logits during calibration.
+                    model.model(**{k: v.to(device) for k, v in batch.items()}, use_cache=False)
+                    print(f"[calibrate] {split}: {min(start + args.calibration_batch_size, len(texts))}/{len(texts)}", flush=True)
+            snapshot = collector.snapshot()
+            for layer in layers:
+                save_torch(args.cache_dir / f"{split}_layer_{layer}.pt", snapshot[layer])
+        finally:
+            collector.close()
+            del collector
+            gc.collect()
+    atomic_json(source_path, source)
+
+
+def _config(args, layers):
+    source_path = args.cache_dir / "calibration_manifest.json"
+    source = json.loads(source_path.read_text()) if source_path.exists() else None
+    return {"format": FORMAT, "model_path": str(args.model_path.resolve()),
+            "calibration_source": source,
+            "layers": layers, "qjl_d_factor": args.qjl_d_factor,
+            "rank": max(args.ranks), "ranks": args.ranks,
+            "group_size": args.group_size, "pairing": args.pairing,
+            "projection_seed": args.projection_seed, "pairing_seed": args.pairing_seed,
+            "bundle_seed": args.bundle_seed, "ridge": args.ridge,
+            "svd_method": args.svd_method, "refine_sweeps": args.refine_sweeps,
+            "refine_block": args.refine_block, "conflict_only": not args.refine_all_bits,
+            "row_chunk": args.row_chunk, "cases": [c for c in args.cases if c != "original"]}
+
+
+def _layer_paths(root, layer, config):
+    names = [f"base_{case}_layer_{layer}.pt" for case in ("A", "B")]
+    if "E" in config["cases"]:
+        names.extend(f"base_E_r{rank}_layer_{layer}.pt" for rank in config["ranks"])
+    names += [f"factor_{case}_r{rank}_layer_{layer}.pt"
+              for case in ("C", "D", "E") if case in config["cases"]
+              for rank in config["ranks"]]
+    names.append(f"per_expert_layer_{layer}.csv")
+    names.append(f"spectrum_layer_{layer}.npz")
+    names.append(f"compression_layer_{layer}.json")
+    return [root / name for name in names]
+
+
+def compress(args, model, layers):
+    root = args.checkpoint_dir
+    root.mkdir(parents=True, exist_ok=True)
+    config = _config(args, layers)
+    manifest = root / "manifest.json"
+    if manifest.exists():
+        old = json.loads(manifest.read_text())
+        if old != config:
+            raise ValueError("checkpoint manifest differs; choose another directory")
+        if not args.resume:
+            raise FileExistsError("checkpoint exists; pass --resume")
+    else:
+        atomic_json(manifest, config)
+    banks = {}
+    for layer in layers:
+        paths = _layer_paths(root, layer, config)
+        if args.resume and all(path.exists() for path in paths):
+            print(f"[compress] layer {layer}: resumed", flush=True)
+            block = model.model.layers[layer].mlp
+            block.experts = nn.ModuleList(nn.Identity() for _ in block.experts)
+            continue
+        cal_path = args.cache_dir / f"calibration_layer_{layer}.pt"
+        if not cal_path.exists():
+            raise FileNotFoundError(f"run --mode calibrate first: {cal_path}")
+        calibration = torch.load(cal_path, map_location="cpu", weights_only=False)
+        held_path = args.cache_dir / f"heldout_layer_{layer}.pt"
+        if not held_path.exists():
+            raise FileNotFoundError(f"held-out covariance cache missing: {held_path}")
+        heldout = torch.load(held_path, map_location="cpu", weights_only=False)
+        if torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
+        started = time.perf_counter()
+        base, factors, refined, records, spectra = compress_layer(model.model.layers[layer].mlp,
+                                                         layer, calibration, config, banks, heldout)
+        for case, state in base.items():
+            save_torch(root / f"base_{case}_layer_{layer}.pt", state)
+        if "E" in config["cases"]:
+            for rank in config["ranks"]:
+                save_torch(root / f"base_E_r{rank}_layer_{layer}.pt", refined[rank])
+        for case in ("C", "D"):
+            if case in config["cases"]:
+                for rank in config["ranks"]:
+                    sliced = {"format": FORMAT, "layer": layer, "case": case,
+                              "rank": rank, "projections": {}}
+                    for key, part in factors[case]["projections"].items():
+                        sliced["projections"][key] = {
+                            i: {"u": pair["u"][:, :rank].contiguous(),
+                                "v": pair["v"][:rank].contiguous()}
+                            for i, pair in part.items()}
+                    save_torch(root / f"factor_{case}_r{rank}_layer_{layer}.pt", sliced)
+        if "E" in config["cases"]:
+            for rank in config["ranks"]:
+                save_torch(root / f"factor_E_r{rank}_layer_{layer}.pt", factors["E"][rank])
+        fields = list(dict.fromkeys(key for row in records for key in row))
+        save_csv(root / f"per_expert_layer_{layer}.csv",
+                 [{key: row.get(key) for key in fields} for row in records])
+        np.savez_compressed(root / f"spectrum_layer_{layer}.npz", **spectra)
+        atomic_json(root / f"compression_layer_{layer}.json", {
+            "layer": layer, "wall_seconds": time.perf_counter() - started,
+            "gpu_peak_allocated_bytes": [torch.cuda.max_memory_allocated(i)
+                                         for i in range(torch.cuda.device_count())]})
+        block = model.model.layers[layer].mlp
+        block.experts = nn.ModuleList(nn.Identity() for _ in block.experts)
+        del calibration, heldout, base, factors, refined, records, spectra
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        print(f"[compress] layer {layer}: {time.perf_counter() - started:.1f}s", flush=True)
+    report(args)
+
+
+def _resident(model):
+    sketch, scales, factors = {}, {}, {}
+    for layer in model.model.layers:
+        for expert in getattr(layer.mlp, "_compact_experts", ()):
+            for base in expert.bases.values():
+                for tensor, bucket in ((base.packed, sketch), (base.norms, scales)):
+                    if tensor.is_cuda:
+                        storage = tensor.untyped_storage()
+                        bucket[storage.data_ptr()] = storage.nbytes()
+            for correction in expert.corrections.values():
+                for tensor in (correction.u, correction.v):
+                    if tensor.is_cuda:
+                        storage = tensor.untyped_storage()
+                        factors[storage.data_ptr()] = storage.nbytes()
+    projection = sum(bank.resident_bytes("cuda") for bank in
+                     getattr(model, "_activation_bundle_banks", {}).values())
+    return {"gpu_shared_sketch_bytes": sum(sketch.values()),
+            "gpu_row_scale_bytes": sum(scales.values()),
+            "gpu_lowrank_bytes": sum(factors.values()),
+            "gpu_projection_bytes": projection,
+            "gpu_compact_total_bytes": sum(sketch.values()) + sum(scales.values()) +
+                                       sum(factors.values()) + projection}
+
+
+def evaluate(args, model, tokenizer, layers):
+    case = args.case
+    rank = args.rank
+    if case in ("C", "D", "E") and not args.explicit_rank:
+        manifest = json.loads((args.checkpoint_dir / "manifest.json").read_text())
+        rank = max(manifest["ranks"])
+    if case == "original":
+        storage = original_storage(model, args.model_path, layers)
+        config = None
+    else:
+        config = load_checkpoint(model, args.checkpoint_dir, case, args.backend, rank)
+        storage = checkpoint_sizes(args.checkpoint_dir, config, case, rank)
+        original_full = sum(path.stat().st_size for path in args.model_path.glob("*.safetensors"))
+        routed_original = 2 * storage["routed_weight_count"]
+        if original_full:
+            estimated_full = original_full - routed_original + storage["actual_checkpoint_bytes"]
+            storage.update({"original_model_checkpoint_bytes": original_full,
+                            "estimated_full_model_checkpoint_bytes": estimated_full,
+                            "whole_model_storage_reduction": 1 - estimated_full / original_full,
+                            "expert_compression_ratio": routed_original / storage["actual_checkpoint_bytes"]})
+    case_dir = args.output_dir / case / (f"rank_{rank}" if case in ("C", "D", "E") else "")
+    case_dir.mkdir(parents=True, exist_ok=True)
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+    started = time.perf_counter()
+    result = evaluate_fewshot(model, tokenizer, args.task, 0,
+        eval_batch_size=args.eval_batch_size, output_path=str(case_dir / "lm_eval.txt"),
+        limit=args.eval_limit or None)
+    elapsed = time.perf_counter() - started
+    summary = report_eval_summary(result, args.task, str(case_dir / "lm_eval.txt"),
+                                  header=f"Activation bundle {case}")
+    runtime = _resident(model) if config else {}
+    metrics = {"case": case, "rank": rank if case in ("C", "D", "E") else 0,
+               "task": args.task, "eval_limit": args.eval_limit,
+               "eval_batch_size": args.eval_batch_size, "backend": args.backend,
+               "evaluation_wall_seconds": elapsed, "task_summary": summary,
+               "task_results": result.get("results", {}), "storage": storage,
+               "runtime": runtime,
+               "gpu_process_allocated_bytes": [torch.cuda.memory_allocated(i) for i in range(torch.cuda.device_count())],
+               "gpu_process_peak_allocated_bytes": [torch.cuda.max_memory_allocated(i) for i in range(torch.cuda.device_count())]}
+    atomic_json(case_dir / "eval_metrics.json", metrics)
+    report(args)
+    print(f"[eval] saved {case_dir / 'eval_metrics.json'}", flush=True)
+
+
+def report(args):
+    out = args.output_dir
+    out.mkdir(parents=True, exist_ok=True)
+    manifest = args.checkpoint_dir / "manifest.json"
+    config = json.loads(manifest.read_text()) if manifest.exists() else None
+    all_rows = []
+    if config:
+        for layer in config["layers"]:
+            path = args.checkpoint_dir / f"per_expert_layer_{layer}.csv"
+            if path.exists():
+                with path.open(newline="") as handle:
+                    all_rows.extend(csv.DictReader(handle))
+        if all_rows:
+            save_csv(out / "per_expert.csv", all_rows)
+            grouped = {}
+            fields = ("pre_bundle_bit_agreement", "bit_preservation", "base_weight_relative_error",
+                      "base_activation_loss", "residual_weight_ratio", "residual_activation_ratio",
+                      "activation_loss", "heldout_activation_loss",
+                      "activation_relative_l2_error", "heldout_relative_l2_error",
+                      "weight_relative_error", "svd_energy", "theoretical_tail_error",
+                      "accepted_flip_ratio")
+            for row in all_rows:
+                key = (row["case"], int(row["rank"]))
+                grouped.setdefault(key, []).append(row)
+            aggregate = []
+            for (case, rank), subset in sorted(grouped.items()):
+                item = {"case": case, "rank": rank, "matrix_count": len(subset)}
+                for field in fields:
+                    values = [float(row[field]) for row in subset if row.get(field) not in (None, "", "None")]
+                    if values:
+                        item[f"mean_{field}"] = sum(values) / len(values)
+                aggregate.append(item)
+            atomic_json(out / "analysis_summary.json", aggregate)
+            spectrum_paths = [args.checkpoint_dir / f"spectrum_layer_{layer}.npz"
+                              for layer in config["layers"]]
+            plot_dir = out / "plots"
+            plot_paths = [plot_dir / "spectrum.png", plot_dir / "cumulative_energy.png"]
+            refresh_plots = (any(not path.exists() for path in plot_paths) or
+                             any(path.exists() and path.stat().st_mtime >
+                                 min(plot.stat().st_mtime for plot in plot_paths if plot.exists())
+                                 for path in spectrum_paths))
+            spectra = {}
+            if refresh_plots:
+                for path in spectrum_paths:
+                    if not path.exists():
+                        continue
+                    with np.load(path) as data:
+                        for name in data.files:
+                            case = name.split("_")[-1]
+                            if name.endswith(f"_E_r{max(config['ranks'])}"):
+                                case = "E"
+                            if case in ("C", "D", "E"):
+                                values = data[name].astype(np.float64)
+                                energy = values ** 2
+                                spectra.setdefault(case, []).append(energy / max(energy.sum(), 1e-30))
+            if spectra:
+                import matplotlib
+                matplotlib.use("Agg")
+                import matplotlib.pyplot as plt
+                plot_dir.mkdir(exist_ok=True)
+                for filename, cumulative in (("spectrum.png", False),
+                                             ("cumulative_energy.png", True)):
+                    fig, ax = plt.subplots(figsize=(8, 5))
+                    for case, arrays in spectra.items():
+                        size = min(map(len, arrays))
+                        mean = np.mean(np.stack([a[:size] for a in arrays]), axis=0)
+                        ax.plot(np.arange(1, size + 1), mean.cumsum() if cumulative else mean,
+                                label=case)
+                    if not cumulative:
+                        ax.set_yscale("log")
+                    ax.set_xlabel("Rank")
+                    ax.set_ylabel("Cumulative energy" if cumulative else "Normalized singular energy")
+                    ax.legend()
+                    fig.tight_layout()
+                    fig.savefig(plot_dir / filename, dpi=160)
+                    plt.close(fig)
+    summary_rows = []
+    paths = ([out / case / "eval_metrics.json" for case in ("original", "A", "B")] +
+             [out / case / f"rank_{rank}" / "eval_metrics.json"
+              for case in ("C", "D", "E") for rank in
+              (config["ranks"] if config else args.ranks)])
+    for path in paths:
+        if not path.exists():
+            continue
+        metrics = json.loads(path.read_text())
+        case = metrics["case"]
+        task_summary = metrics["task_summary"]
+        row = {"case": case, "rank": metrics.get("rank", 0),
+               "average_accuracy": task_summary["avg"],
+               "average_acc_norm": task_summary["avg_norm"],
+               "evaluation_wall_seconds": metrics["evaluation_wall_seconds"]}
+        for task, acc, norm in task_summary["tasks"]:
+            row[f"{task}_acc"] = acc
+            row[f"{task}_acc_norm"] = norm
+        row.update(metrics["storage"])
+        summary_rows.append(row)
+    if summary_rows:
+        fields = list(dict.fromkeys(key for row in summary_rows for key in row))
+        save_csv(out / "summary.csv", [{key: row.get(key) for key in fields}
+                                        for row in summary_rows])
+        atomic_json(out / "summary.json", summary_rows)
+    lines = ["# Activation-aware QJL binary bundling", "",
+             f"Checkpoint: `{args.checkpoint_dir}`", "",
+             f"Calibrated layer count: {len(config['layers']) if config else 0}", "",
+             f"Per-expert records: {len(all_rows)}", ""]
+    if config:
+        total_seconds = 0.
+        peaks = []
+        for layer in config["layers"]:
+            path = args.checkpoint_dir / f"compression_layer_{layer}.json"
+            if path.exists():
+                item = json.loads(path.read_text())
+                total_seconds += item["wall_seconds"]
+                peaks.extend(item["gpu_peak_allocated_bytes"])
+        if total_seconds:
+            lines += [f"Compression time across completed layers: {total_seconds:.1f} s.",
+                      f"Peak GPU allocation during compression: {max(peaks, default=0)} bytes.", ""]
+    if summary_rows:
+        lines += ["| Case | Mean accuracy | Mean acc_norm | Checkpoint bytes | BPW |",
+                  "|---|---:|---:|---:|---:|"]
+        for row in summary_rows:
+            lines.append(f"| {row['case']} | {row['average_accuracy']:.4f} | "
+                         f"{row['average_acc_norm']:.4f} | {row['actual_checkpoint_bytes']} | "
+                         f"{row['effective_bpw']:.3f} |")
+    else:
+        lines += ["Evaluation has not been run."]
+    lines += ["", "A and B contain packed group sketches and expert scales only. "
+              "C and D use B's base; E uses a refined code. Calibration cache bytes "
+              "are excluded from inference checkpoint bytes. Original checkpoint "
+              "bytes count the whole BF16 model, while compressed checkpoint bytes "
+              "count routed weights of selected layers.", ""]
+    (out / "REPORT.md").write_text("\n".join(lines))
+
+
+def main(argv=None):
+    args = arguments(argv)
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    if args.mode == "report":
+        report(args)
+        return
+    if args.mode == "sweep":
+        cache_ready = all((args.cache_dir / f"{split}_layer_{layer}.pt").exists()
+                          for split in ("calibration", "heldout")
+                          for layer in select(args.layers, 24))
+        if args.calibration_jsonl is None and not cache_ready:
+            prepare_default_texts(args)
+        cache_manifest = args.cache_dir / "calibration_manifest.json"
+        if args.calibration_jsonl is not None and cache_manifest.exists():
+            cached = json.loads(cache_manifest.read_text())
+            for label, path in (("calibration", args.calibration_jsonl),
+                                ("heldout", args.heldout_jsonl)):
+                if hashlib.sha256(path.read_bytes()).hexdigest() != cached[f"{label}_sha256"]:
+                    raise ValueError(f"{label} JSONL differs from the covariance cache")
+        # Separate processes release all GPU allocations between cases.
+        import subprocess
+        common = [sys.executable, str(Path(__file__).resolve()), "--model-path", str(args.model_path),
+                  "--output-dir", str(args.output_dir), "--checkpoint-dir", str(args.checkpoint_dir),
+                  "--cache-dir", str(args.cache_dir), "--layers", args.layers,
+                  "--qjl-d-factor", str(args.qjl_d_factor), "--group-size", str(args.group_size),
+                  "--pairing", args.pairing, "--ranks", ",".join(map(str, args.ranks)),
+                  "--projection-seed", str(args.projection_seed), "--pairing-seed", str(args.pairing_seed),
+                  "--bundle-seed", str(args.bundle_seed), "--ridge", str(args.ridge),
+                  "--svd-method", args.svd_method, "--row-chunk", str(args.row_chunk),
+                  "--refine-sweeps", str(args.refine_sweeps), "--refine-block", str(args.refine_block),
+                  "--task", args.task, "--eval-limit", str(args.eval_limit),
+                  "--eval-batch-size", str(args.eval_batch_size), "--backend", args.backend,
+                  "--cases", ",".join(args.cases)]
+        if args.calibration_jsonl is not None:
+            common += ["--calibration-jsonl", str(args.calibration_jsonl)]
+        if args.heldout_jsonl is not None:
+            common += ["--heldout-jsonl", str(args.heldout_jsonl)]
+        common += ["--calibration-size", str(args.calibration_size),
+                   "--heldout-size", str(args.heldout_size),
+                   "--calibration-batch-size", str(args.calibration_batch_size),
+                   "--max-length", str(args.max_length)]
+        if args.refine_all_bits:
+            common.append("--refine-all-bits")
+        if args.resume:
+            common.append("--resume")
+        if not cache_ready:
+            if args.calibration_jsonl is None or args.heldout_jsonl is None:
+                raise FileNotFoundError("calibration cache missing; pass both JSONL paths or run calibrate")
+            subprocess.run(common + ["--mode", "calibrate"], check=True)
+        subprocess.run(common + ["--mode", "compress"], check=True)
+        if not args.skip_eval:
+            for case in args.cases:
+                ranks = args.ranks if case in ("C", "D", "E") else [0]
+                for rank in ranks:
+                    result_path = (args.output_dir / case /
+                                   (f"rank_{rank}" if rank else "") / "eval_metrics.json")
+                    if args.resume and result_path.exists():
+                        continue
+                    subprocess.run(common + ["--mode", "eval", "--case", case,
+                                             "--rank", str(rank)], check=True)
+        subprocess.run(common + ["--mode", "report"], check=True)
+        return
+    if args.mode == "calibrate":
+        prepare_default_texts(args)
+    model, tokenizer = load_model(args.model_path, args.gpu_memory_fraction)
+    layers = select(args.layers, len(model.model.layers))
+    if args.mode == "calibrate":
+        calibrate(args, model, tokenizer, layers)
+    elif args.mode == "compress":
+        compress(args, model, layers)
+    else:
+        evaluate(args, model, tokenizer, layers)
+
+
+if __name__ == "__main__":
+    main()
