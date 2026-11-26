@@ -252,8 +252,12 @@ def test_all_group_sizes_store_one_sketch_per_group():
         torch.manual_seed(27)
         cfg = config(("A", "B"))
         cfg["group_size"] = k
+        progress = []
         bases, _, _, _, _ = compress_layer(TinyModel(12).model.layers[0].mlp,
-                                           0, calibration(12), cfg, {})
+                                           0, calibration(12), cfg, {},
+                                           progress=lambda *event: progress.append(event))
+        assert len(progress) == 3 * (1 + 12 // k)
+        assert sum(group_id >= 0 for _, _, group_id, _ in progress) == 3 * 12 // k
         for case in ("A", "B"):
             for part in bases[case]["projections"].values():
                 assert len(part["groups"]) == len(part["sketches"]) == 12 // k

@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 import torch
+from tqdm import tqdm
 import torch.nn as nn
 import numpy as np
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -297,7 +298,9 @@ def calibrate(args, model, tokenizer, layers):
                                 args.max_length, args.length_bucketing)
         try:
             with torch.no_grad():
-                for batch_number, batch in enumerate(batches, 1):
+                for batch in tqdm(batches, desc=f"[calibrate] {split}",
+                                  unit="batch", dynamic_ncols=True,
+                                  disable=not sys.stderr.isatty()):
                     collector.begin_batch(batch["attention_mask"])
                     device = next(model.parameters()).device
                     if args.profile and device.type == "cuda":
@@ -310,7 +313,6 @@ def calibrate(args, model, tokenizer, layers):
                     if args.profile and device.type == "cuda":
                         torch.cuda.synchronize(device)
                     forward_seconds += time.perf_counter() - started
-                    print(f"[calibrate] {split}: {batch_number}/{len(batches)} batches", flush=True)
             snapshot = collector.snapshot()
             checkpoint_started = time.perf_counter()
             for layer in layers:
@@ -376,10 +378,22 @@ def compress(args, model, layers):
     else:
         atomic_json(manifest, config)
     banks = {}
+    bar = tqdm(total=sum(3 * len(model.model.layers[layer].mlp.experts) //
+                         config["group_size"] + 1 for layer in layers),
+               desc="[compress]", unit="step", dynamic_ncols=True,
+               disable=not sys.stderr.isatty())
+
+    def progress(layer, projection, group_id, group_count):
+        bar.set_description_str(f"[compress] layer {layer} {projection}", refresh=False)
+        if group_id >= 0:
+            bar.set_postfix_str(f"group {group_id + 1}/{group_count}", refresh=False)
+            bar.update(1)
+
     for layer in layers:
         paths = _layer_paths(root, layer, config)
         if args.resume and all(path.exists() for path in paths):
-            print(f"[compress] layer {layer}: resumed", flush=True)
+            bar.set_description_str(f"[compress] layer {layer}: resumed", refresh=False)
+            bar.update(3 * len(model.model.layers[layer].mlp.experts) // config["group_size"] + 1)
             block = model.model.layers[layer].mlp
             block.experts = nn.ModuleList(nn.Identity() for _ in block.experts)
             continue
@@ -397,7 +411,8 @@ def compress(args, model, layers):
         stage_profile = {} if args.profile else None
         base, factors, refined, records, spectra = compress_layer(model.model.layers[layer].mlp,
                                             layer, calibration, config, banks, heldout,
-                                            profile=stage_profile)
+                                            profile=stage_profile, progress=progress)
+        bar.set_description_str(f"[compress] layer {layer}: checkpoint", refresh=False)
         checkpoint_started = time.perf_counter()
         for case, state in base.items():
             save_torch(root / f"base_{case}_layer_{layer}.pt", state)
@@ -437,7 +452,8 @@ def compress(args, model, layers):
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        print(f"[compress] layer {layer}: {time.perf_counter() - started:.1f}s", flush=True)
+        bar.update(1)
+    bar.close()
     report(args)
 
 

@@ -512,6 +512,10 @@ output directory. Its manifest checks the local model revision and weight
 shards, dataset hashes, sample counts, maximum length, batch construction and
 layer coverage before reuse. Existing manifested covariance shards remain
 readable; unmanifested shards are rejected.
+In an interactive terminal, calibration displays one updating `tqdm` bar across
+layers and batches, and compression displays one across projection groups and
+checkpoint writes. `lm-eval` retains its own request progress bar. Redirected
+logs omit the interactive bars.
 
 The default SVD method remains `exact` for accuracy and a full singular
 spectrum. `SVD_METHOD=randomized` is an explicit truncated approximation with

@@ -11,10 +11,12 @@ import gc
 import os
 import resource
 import shutil
+import sys
 import time
 from pathlib import Path
 
 import torch
+from tqdm import tqdm
 from transformers.modeling_attn_mask_utils import (
     _prepare_4d_causal_attention_mask,
     _prepare_4d_causal_attention_mask_for_sdpa,
@@ -222,6 +224,10 @@ def collect_layerwise(backbone, batches, layers, cache_dir, *, hidden_cache="aut
         raise ValueError(f"unknown hidden cache mode: {mode}")
     current = {split: None for split in batches}
     profiles = []
+    bar = (tqdm(total=(max(selected) + 1) * sum(len(items) for items in batches.values()),
+                desc="[calibrate]", unit="batch", dynamic_ncols=True,
+                disable=not sys.stderr.isatty())
+           if progress is print else None)
     for layer_idx in range(max(selected) + 1):
         layer = backbone.layers[layer_idx]
         next_hidden = {}
@@ -233,7 +239,11 @@ def collect_layerwise(backbone, batches, layers, cache_dir, *, hidden_cache="aut
                             if mode == "disk" and resume else None)
             if ready_hidden is not None and completed_cov:
                 next_hidden[split] = ready_hidden
-                progress(f"[calibrate] {split} layer {layer_idx}: resumed hidden state")
+                if bar is not None:
+                    bar.set_description_str(f"[calibrate] {split} layer {layer_idx}", refresh=False)
+                    bar.update(len(split_batches))
+                else:
+                    progress(f"[calibrate] {split} layer {layer_idx}: resumed hidden state")
                 continue
             collector = (RoutedLayerCovariance(layer.mlp, profile=profile)
                          if layer_idx in selected and not completed_cov else None)
@@ -245,6 +255,8 @@ def collect_layerwise(backbone, batches, layers, cache_dir, *, hidden_cache="aut
             if profile and torch.cuda.is_available():
                 torch.cuda.reset_peak_memory_stats()
             try:
+                if bar is not None:
+                    bar.set_description_str(f"[calibrate] {split} layer {layer_idx}", refresh=False)
                 for batch_id, batch in enumerate(split_batches):
                     if current[split] is None:
                         embedding_device = backbone.embed_tokens.weight.device
@@ -279,8 +291,11 @@ def collect_layerwise(backbone, batches, layers, cache_dir, *, hidden_cache="aut
                     else:
                         outputs.append(output)
                     cache_seconds += time.perf_counter() - started
-                    progress(f"[calibrate] {split} layer {layer_idx}: "
-                             f"{batch_id + 1}/{len(split_batches)}", flush=True)
+                    if bar is not None:
+                        bar.update(1)
+                    else:
+                        progress(f"[calibrate] {split} layer {layer_idx}: "
+                                 f"{batch_id + 1}/{len(split_batches)}", flush=True)
                 snapshot = collector.snapshot() if collector is not None else None
                 if snapshot is not None:
                     atomic_torch(cov_path, snapshot)
@@ -314,4 +329,6 @@ def collect_layerwise(backbone, batches, layers, cache_dir, *, hidden_cache="aut
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+    if bar is not None:
+        bar.close()
     return profiles, mode

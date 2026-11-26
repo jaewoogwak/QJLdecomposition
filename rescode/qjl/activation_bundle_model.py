@@ -256,7 +256,8 @@ def _svd_seed(config, layer, key, expert_id, case, rank):
 
 
 @torch.no_grad()
-def compress_layer(block, layer, calibration, config, banks, heldout=None, profile=None):
+def compress_layer(block, layer, calibration, config, banks, heldout=None, profile=None,
+                   progress=None):
     """Compress one layer; covariance and original weights die with this call."""
     n_experts = len(block.experts)
     k = config["group_size"]
@@ -292,6 +293,8 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None, profi
             profile[name] = profile.get(name, 0.) + time.perf_counter() - started
 
     for key, attr in PROJECTIONS.items():
+        if progress is not None:
+            progress(layer, key, -1, n_experts // k)
         if key == "down":
             shared_input_cache.clear()
             shared_g32 = None
@@ -533,6 +536,8 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None, profi
             for row in records:
                 if row["layer"] == layer and row["projection"] == key and row["group"] == group_id:
                     row["group_compression_seconds"] = group_seconds
+            if progress is not None:
+                progress(layer, key, group_id, len(groups))
         for case in ("A", "B"):
             base[case]["projections"][key] = parts[case]
         for rank in ranks:
