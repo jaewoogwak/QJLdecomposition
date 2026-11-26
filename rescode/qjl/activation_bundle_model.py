@@ -108,7 +108,7 @@ def regularized_roots(c, ridge):
 
 
 def svd_factors(residual, rank, c=None, ridge=1e-4, method="exact", oversample=16,
-                roots=None):
+                roots=None, niter=2, seed=0, return_source_energy=False):
     """Return BF16 factors, singular values, and FP32 theoretical energy."""
     if c is None:
         source, invroot = residual.float(), None
@@ -116,23 +116,39 @@ def svd_factors(residual, rank, c=None, ridge=1e-4, method="exact", oversample=1
         root, invroot = roots if roots is not None else regularized_roots(c, ridge)
         source = residual.float() @ root
     k = min(rank, *source.shape)
+    source_energy = source.square().sum().clamp_min(1e-30)
     if k == 0:
         u = source.new_zeros((source.shape[0], 0)).to(torch.bfloat16)
         v = source.new_zeros((0, source.shape[1])).to(torch.bfloat16)
-        return u, v, source.new_zeros(0), 0.0
+        result = (u, v, source.new_zeros(0), 0.0)
+        return result + (source_energy,) if return_source_energy else result
     if method == "exact":
         left, singular, right = torch.linalg.svd(source, full_matrices=False)
         vh = right[:k]
     elif method == "randomized":
-        # q must exceed k for a useful randomized approximation.
-        left, singular, v = torch.svd_lowrank(source, q=min(k + oversample, min(source.shape)), niter=2)
-        vh = v[:, :k].T
+        # The only large SVD is over q rows. CPU seeded Ω gives the same
+        # starting subspace across devices without changing global RNG state.
+        q = min(k + oversample, min(source.shape))
+        generator = torch.Generator(device="cpu").manual_seed(seed)
+        omega = torch.randn(source.shape[1], q, generator=generator,
+                            dtype=torch.float32).to(source.device)
+        basis = source @ omega
+        for _ in range(niter):
+            basis = torch.linalg.qr(basis, mode="reduced")[0]
+            right_basis = torch.linalg.qr(source.T @ basis, mode="reduced")[0]
+            basis = source @ right_basis
+        basis = torch.linalg.qr(basis, mode="reduced")[0]
+        small = basis.T @ source
+        small_left, singular, right = torch.linalg.svd(small, full_matrices=False)
+        left = basis @ small_left
+        vh = right[:k]
     else:
         raise ValueError(method)
     u = (left[:, :k] * singular[:k]).to(torch.bfloat16)
     v = (vh @ invroot if invroot is not None else vh).to(torch.bfloat16).contiguous()
-    energy = float(singular[:k].square().sum() / source.square().sum().clamp_min(1e-30))
-    return u, v, singular, energy
+    energy = float(singular[:k].square().sum() / source_energy)
+    result = (u, v, singular, energy)
+    return result + (source_energy,) if return_source_energy else result
 
 
 def activation_loss(weight, approximation, covariance):
@@ -141,13 +157,20 @@ def activation_loss(weight, approximation, covariance):
                  (weight.float() @ covariance.float() * weight.float()).sum().clamp_min(1e-30))
 
 
-def refinement_geometry(weights, covariances, g):
-    cg = [c.float() @ g.float() for c in covariances]
-    kg = [g.float().T @ x for x in cg]
+def refinement_geometry(weights, covariances, g, *, individual_signs=None,
+                        projected_covariances=None, projected_energies=None):
+    g32 = g.float()
+    cg = (projected_covariances if projected_covariances is not None else
+          [c.float() @ g32 for c in covariances])
+    kg = [g32.T @ x for x in cg]
+    diagonal = (projected_energies if projected_energies is not None else
+                [(x * g32).sum(0) for x in cg])
     denominator = [(w.float() @ c.float() * w.float()).sum().clamp_min(1e-30)
                    for w, c in zip(weights, covariances)]
-    individual = torch.stack([(w.float().to(g.dtype) @ g >= 0) for w in weights])
-    return cg, kg, denominator, individual
+    individual = torch.stack(individual_signs) if individual_signs is not None else torch.stack(
+        [(w.float().to(g.dtype) @ g >= 0) for w in weights])
+    return {"cg": cg, "gram": kg, "diagonal": diagonal,
+            "denominator": denominator, "individual": individual, "g": g32}
 
 
 def refine_group(signs, weights, covariances, scales, factors, g, *, sweeps=1,
@@ -160,26 +183,29 @@ def refine_group(signs, weights, covariances, scales, factors, g, *, sweeps=1,
     if sweeps == 0:
         return signs, {"accepted_flips": 0, "candidate_flips": 0, "loss_before": None,
                        "loss_after": None}
-    device = signs.device
     h = signs.clone()
     rows, d = h.shape
+    row_chunk = row_chunk or rows
     a = SQRT_PI_HALF / d
-    cg, kg, denominator, individual = (geometry if geometry is not None else
-                                        refinement_geometry(weights, covariances, g))
+    geometry = geometry if geometry is not None else refinement_geometry(weights, covariances, g)
+    cg, kg = geometry["cg"], geometry["gram"]
+    diagonal, denominator = geometry["diagonal"], geometry["denominator"]
+    individual, g32 = geometry["individual"], geometry["g"]
     target = [w.float() - u.float() @ v.float() for w, (u, v) in zip(weights, factors)]
 
     def objective(code):
-        b = unscaled_base(code, g)
+        b = a * (code.float().mul(2).sub(1) @ g32.T)
         return sum(float(((t - s[:, None] * b) @ c * (t - s[:, None] * b)).sum() / den)
                    for t, s, c, den in zip(target, scales, covariances, denominator))
 
     before = objective(h)
-    candidates = accepted = 0
+    candidates = torch.zeros((), dtype=torch.int64, device=signs.device)
+    accepted = torch.zeros((), dtype=torch.int64, device=signs.device)
     for _ in range(sweeps):
         for start in range(0, rows, row_chunk):
             end = min(start + row_chunk, rows)
             old_sign = h[start:end].float().mul(2).sub(1)
-            current_b = a * old_sign @ g.float().T
+            current_b = a * old_sign @ g32.T
             ecg = [(t[start:end] - s[start:end, None] * current_b) @ x
                    for t, s, x in zip(target, scales, cg)]
             for lo in range(0, d, block_size):
@@ -187,36 +213,35 @@ def refine_group(signs, weights, covariances, scales, factors, g, *, sweeps=1,
                 sign_block = old_sign[:, lo:hi]
                 dh = -2 * sign_block
                 delta = torch.zeros_like(dh)
-                for e, (s, ec, k, den) in enumerate(zip(scales, ecg, kg, denominator)):
+                for s, ec, diag, den in zip(scales, ecg, diagonal, denominator):
                     amplitude = a * s[start:end, None] * dh
                     delta += (-2 * amplitude * ec[:, lo:hi] +
-                              amplitude.square() * k.diag()[lo:hi]) / den
+                              amplitude.square() * diag[lo:hi]) / den
                 mask = delta < 0
                 if conflict_only:
                     conflict = (individual[:, start:end, lo:hi] != individual[0:1, start:end, lo:hi]).any(0)
                     mask &= conflict
-                candidates += int(mask.sum())
-                if not mask.any():
-                    continue
+                candidates.add_(mask.sum())
                 proposal = dh * mask
-                total = torch.zeros(end - start, device=device)
+                total = torch.zeros(end - start, device=signs.device)
                 for s, ec, k, den in zip(scales, ecg, kg, denominator):
                     amp = a * s[start:end, None] * proposal
                     total += (-2 * (amp * ec[:, lo:hi]).sum(1) +
                               (amp @ k[lo:hi, lo:hi] * amp).sum(1)) / den
                 take = (total < -1e-10) & mask.any(1)
                 proposal *= take[:, None]
-                accepted += int((proposal != 0).sum())
+                accepted.add_((proposal != 0).sum())
                 old_sign[:, lo:hi] += proposal
                 h[start:end, lo:hi] = old_sign[:, lo:hi] > 0
                 for e, s in enumerate(scales):
                     ecg[e] -= (a * s[start:end, None] * proposal) @ kg[e][lo:hi, :]
     after = objective(h)
+    candidate_count, accepted_count = int(candidates.item()), int(accepted.item())
     if after > before + 1e-6:
-        return signs, {"accepted_flips": 0, "candidate_flips": candidates,
+        return signs, {"accepted_flips": 0, "candidate_flips": candidate_count,
                        "loss_before": before, "loss_after": before,
                        "refinement_objective_rollback": True}
-    return h, {"accepted_flips": accepted, "candidate_flips": candidates,
+    return h, {"accepted_flips": accepted_count, "candidate_flips": candidate_count,
                "loss_before": before, "loss_after": after,
                "refinement_objective_rollback": False}
 
@@ -225,8 +250,13 @@ def _seeds(config, layer, key, group_id):
     return int(config["bundle_seed"] + layer * 1000003 + KEYS.index(key) * 9176 + group_id)
 
 
+def _svd_seed(config, layer, key, expert_id, case, rank):
+    return int(config.get("svd_seed", 0) + layer * 1000003 + KEYS.index(key) * 9176 +
+               expert_id * 65537 + ord(case) * 4099 + rank)
+
+
 @torch.no_grad()
-def compress_layer(block, layer, calibration, config, banks, heldout=None):
+def compress_layer(block, layer, calibration, config, banks, heldout=None, profile=None):
     """Compress one layer; covariance and original weights die with this call."""
     n_experts = len(block.experts)
     k = config["group_size"]
@@ -245,16 +275,42 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
     refined = {rank: {"format": FORMAT, "layer": layer, "case": "E", "rank": rank,
                       "projections": {}} for rank in ranks}
     records, spectra = [], {}
+    shared_input_cache = {}
+    shared_g32 = None
+
+    def stage_start():
+        if profile is None:
+            return None
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        return time.perf_counter()
+
+    def stage_end(name, started):
+        if started is not None:
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+            profile[name] = profile.get(name, 0.) + time.perf_counter() - started
+
     for key, attr in PROJECTIONS.items():
+        if key == "down":
+            shared_input_cache.clear()
+            shared_g32 = None
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        encoding_started = stage_start()
         weights = [getattr(expert, attr).weight.detach() for expert in block.experts]
         rows, cols = weights[0].shape
         bank = bank_for(banks, cols, config["qjl_d_factor"], config["projection_seed"])
         g = bank.get(cols, weights[0].device)
+        if shared_g32 is None:
+            shared_g32 = g.float()
+        g32 = shared_g32
         signs = [torch.cat([(w[start:start + config["row_chunk"]].float().to(g.dtype) @ g >= 0)
                             for start in range(0, rows, config["row_chunk"])]) for w in weights]
         packed = [pack_signs(h).cpu() for h in signs]
         groups = make_groups(packed, bank.d, k, config["pairing"],
                              config["pairing_seed"] + layer * 1009 + KEYS.index(key) * 9176)
+        stage_end("encoding_and_grouping_seconds", encoding_started)
         parts = {}
         for case in ("A", "B"):
             parts[case] = {"shape": (rows, cols), "d": bank.d, "groups": groups,
@@ -268,9 +324,29 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
         for group_id, members in enumerate(groups):
             started = time.perf_counter()
             entries = [calibration["experts"].get(i, {}).get(key) for i in members]
-            c = [(entry["covariance"].to(g.device).float() if entry is not None and
-                  entry.get("count", 0) else torch.eye(cols, device=g.device))
-                 for entry in entries]
+            covariance_started = stage_start()
+            covariance_items = []
+            for expert_id, entry in zip(members, entries):
+                item = shared_input_cache.get(expert_id) if key in ("gate", "up") else None
+                if item is None:
+                    c_i = (entry["covariance"].to(g.device).float() if entry is not None and
+                           entry.get("count", 0) else torch.eye(cols, device=g.device))
+                    cg_i = c_i @ g32
+                    eig_started = stage_start()
+                    roots_i = (regularized_roots(c_i, config["ridge"])
+                               if "D" in config["cases"] or "E" in config["cases"] else None)
+                    stage_end("covariance_eigendecomposition_seconds", eig_started)
+                    item = {"covariance": c_i, "cg": cg_i,
+                            "projected_energy": (cg_i * g32).sum(0),
+                            "roots": roots_i}
+                    if key in ("gate", "up"):
+                        shared_input_cache[expert_id] = item
+                covariance_items.append(item)
+            c = [item["covariance"] for item in covariance_items]
+            roots = [item["roots"] for item in covariance_items]
+            cg = [item["cg"] for item in covariance_items]
+            p = [item["projected_energy"] for item in covariance_items]
+            stage_end("covariance_eigendecomposition_and_projection_seconds", covariance_started)
             held_entries = ([heldout["experts"].get(i, {}).get(key) for i in members]
                             if heldout is not None else [None] * len(members))
             held_c = [(entry["covariance"].to(g.device).float() if entry is not None and
@@ -278,8 +354,8 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
             w = [weights[i].float() for i in members]
             s = [x.norm(dim=1) for x in w]
             members_sign = [signs[i] for i in members]
+            base_started = stage_start()
             majority = vote(members_sign, _seeds(config, layer, key, group_id))
-            p = [(ci @ g.float() * g.float()).sum(0) for ci in c]
             aware = vote(members_sign, _seeds(config, layer, key, group_id),
                          [si[:, None].square() * pi[None, :] for si, pi in zip(s, p)])
             code = {"A": majority, "B": aware}
@@ -291,9 +367,9 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
             residual = {case: [wi - si[:, None] * unscaled_base(code[case], g)
                                for wi, si in zip(w, scales[case])]
                         for case in ("A", "B")}
+            stage_end("base_voting_and_scale_seconds", base_started)
             f = {case: [] for case in ("C", "D")}
-            roots = ([regularized_roots(ci, config["ridge"]) for ci in c]
-                     if "D" in config["cases"] or "E" in config["cases"] else None)
+            source_energies = {}
             pair_agreement = (sum(float((members_sign[i] == members_sign[j]).float().mean())
                                   for i in range(len(members)) for j in range(i + 1, len(members))) /
                               (len(members) * (len(members) - 1) / 2))
@@ -304,20 +380,22 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
                 if "D" in config["cases"] or "E" in config["cases"]:
                     requested.append(("D", "B", c[local]))
                 for case, base_case, covariance in requested:
-                    u, v, singular, _ = svd_factors(residual[base_case][local],
+                    svd_started = stage_start()
+                    u, v, singular, _, spectrum_energy = svd_factors(residual[base_case][local],
                         max_rank, covariance, config["ridge"], config["svd_method"],
-                        roots=roots[local] if covariance is not None else None)
+                        oversample=config.get("svd_oversample", 16),
+                        roots=roots[local] if covariance is not None else None,
+                        niter=config.get("svd_niter", 2),
+                        seed=_svd_seed(config, layer, key, expert_id, case, max_rank),
+                        return_source_energy=True)
+                    stage_end(f"svd_{case}_seconds", svd_started)
                     f[case].append((u, v))
+                    source_energies[(case, local)] = float(spectrum_energy)
                     spectra[f"{key}_{expert_id}_{case}"] = singular.cpu().numpy()
                     factor[case]["projections"][key][expert_id] = {"u": u.cpu(), "v": v.cpu()}
                     # Randomized SVD returns only its captured singular values.
                     # Normalize retention by the full source energy, not by
                     # that truncated list.
-                    if covariance is None:
-                        source_energy = residual[base_case][local].square().sum()
-                    else:
-                        source_energy = (residual[base_case][local] @ roots[local][0]).square().sum()
-                    spectrum_energy = source_energy.clamp_min(1e-30)
                     for rank in ranks:
                         ui, vi = u[:, :rank], v[:rank]
                         energy = float(singular[:rank].square().sum() / spectrum_energy)
@@ -337,6 +415,7 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
                                         "svd_energy": energy,
                                         "theoretical_tail_error": math.sqrt(max(0., 1. - energy)),
                                         "spectrum_file": f"spectrum_layer_{layer}.npz:{key}_{expert_id}_{case}",
+                                        "spectrum_source_energy": source_energies[(case, local)],
                                         "spectrum_is_estimate": config["svd_method"] == "randomized",
                                         "activation_loss": activation_loss(w[local], approx, c[local]),
                                         "heldout_activation_loss": (activation_loss(w[local], approx, held_c[local])
@@ -344,36 +423,52 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
                                         "weight_relative_error": float((w[local] - approx).norm() /
                                                                        w[local].norm().clamp_min(1e-30))})
             if "E" in config["cases"]:
-                geometry = refinement_geometry(w, c, g) if config["refine_sweeps"] else None
+                geometry_started = stage_start()
+                geometry = (refinement_geometry(w, c, g, individual_signs=members_sign,
+                             projected_covariances=cg, projected_energies=p)
+                            if config["refine_sweeps"] else None)
+                stage_end("refinement_geometry_seconds", geometry_started)
                 for rank in ranks:
                     d_factors = [(u[:, :rank], v[:rank]) for u, v in f["D"]]
+                    refine_started = stage_start()
+                    refine_wall_started = time.perf_counter()
                     refined_code, refinement = refine_group(aware, w, c, scales["B"], d_factors, g,
                         sweeps=config["refine_sweeps"], block_size=config["refine_block"],
-                        row_chunk=config["row_chunk"], conflict_only=config["conflict_only"],
+                        row_chunk=config.get("refine_row_chunk", config["row_chunk"]),
+                        conflict_only=config["conflict_only"],
                         geometry=geometry)
+                    refine_wall_seconds = time.perf_counter() - refine_wall_started
+                    stage_end("bit_refinement_seconds", refine_started)
                     unscaled = unscaled_base(refined_code, g)
                     refined_scale = [optimized_scale(wi - ui.float() @ vi.float(), unscaled, ci)
                                      for wi, ci, (ui, vi) in zip(w, c, d_factors)]
                     proposal = []
                     for local, expert_id in enumerate(members):
                         ri = w[local] - refined_scale[local][:, None] * unscaled
-                        u, v, singular, energy = svd_factors(ri, rank, c[local],
-                            config["ridge"], config["svd_method"], roots=roots[local])
+                        svd_started = stage_start()
+                        u, v, singular, energy, source_energy = svd_factors(ri, rank, c[local],
+                            config["ridge"], config["svd_method"],
+                            oversample=config.get("svd_oversample", 16),
+                            roots=roots[local], niter=config.get("svd_niter", 2),
+                            seed=_svd_seed(config, layer, key, expert_id, "E", rank),
+                            return_source_energy=True)
+                        stage_end("svd_E_seconds", svd_started)
                         before = activation_loss(w[local], scales["B"][local][:, None] *
                             unscaled_base(aware, g) + d_factors[local][0].float() @ d_factors[local][1].float(), c[local])
                         after = activation_loss(w[local], refined_scale[local][:, None] * unscaled +
                                                 u.float() @ v.float(), c[local])
-                        proposal.append((u, v, energy, before, after, singular))
+                        proposal.append((u, v, energy, before, after, singular,
+                                         float(source_energy)))
                     rollback = sum(item[4] for item in proposal) > sum(item[3] for item in proposal) + 1e-8
                     parts_e[rank]["sketches"][group_id] = pack_signs(aware if rollback else refined_code).cpu()
                     for local, expert_id in enumerate(members):
-                        u, v, energy, before, after, singular = proposal[local]
+                        u, v, energy, before, after, singular, source_energy = proposal[local]
                         if rollback:
                             u, v = d_factors[local]
                             singular = torch.from_numpy(spectra[f"{key}_{expert_id}_D"])
-                            source_energy = (residual["B"][local] @ roots[local][0]).square().sum()
+                            source_energy = source_energies[("D", local)]
                             energy = float(singular[:rank].square().sum() /
-                                           source_energy.clamp_min(1e-30))
+                                           max(source_energy, 1e-30))
                         parts_e[rank]["scales"][expert_id] = (scales["B"][local] if rollback
                                                                else refined_scale[local]).cpu()
                         factor["E"][rank]["projections"][key][expert_id] = {"u": u.cpu(), "v": v.cpu()}
@@ -398,6 +493,7 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
                                         "residual_activation_ratio": math.sqrt(base_loss),
                                         "theoretical_tail_error": math.sqrt(max(0., 1. - energy)),
                                         "spectrum_file": f"spectrum_layer_{layer}.npz:{key}_{expert_id}_E_r{rank}",
+                                        "spectrum_source_energy": source_energy,
                                         "spectrum_is_estimate": config["svd_method"] == "randomized",
                                         "activation_loss": before if rollback else after,
                                         "heldout_activation_loss": (activation_loss(w[local], approximation, held_c[local])
@@ -407,6 +503,7 @@ def compress_layer(block, layer, calibration, config, banks, heldout=None):
                                         "pre_refine_loss": before, "post_refine_loss": after,
                                         "refine_rollback": rollback,
                                         "accepted_flip_ratio": refinement["accepted_flips"] / (rows * bank.d),
+                                        "refinement_wall_seconds": refine_wall_seconds,
                                         **refinement})
             for local, expert_id in enumerate(members):
                 for case in ("A", "B"):

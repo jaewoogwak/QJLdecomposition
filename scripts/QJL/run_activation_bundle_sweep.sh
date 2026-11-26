@@ -7,7 +7,7 @@ MODE="${MODE:-sweep}"
 MODEL_PATH="${MODEL_PATH:-/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat}"
 OUTPUT_DIR="${OUTPUT_DIR:-results/activation_bundle/d2n_k2}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-$OUTPUT_DIR/checkpoint}"
-CACHE_DIR="${CACHE_DIR:-$OUTPUT_DIR/cache}"
+CACHE_DIR="${CACHE_DIR:-results/activation_bundle/shared_cache}"
 QJL_D_FACTOR="${QJL_D_FACTOR:-2}"
 GROUP_SIZE="${GROUP_SIZE:-2}"
 PAIRING="${PAIRING:-similarity}"
@@ -33,8 +33,17 @@ if [[ -n "${HELDOUT_JSONL:-}" ]]; then args+=(--heldout-jsonl "$HELDOUT_JSONL");
 if [[ -n "${CALIBRATION_SIZE:-}" ]]; then args+=(--calibration-size "$CALIBRATION_SIZE"); fi
 if [[ -n "${HELDOUT_SIZE:-}" ]]; then args+=(--heldout-size "$HELDOUT_SIZE"); fi
 if [[ -n "${CALIBRATION_BATCH_SIZE:-}" ]]; then args+=(--calibration-batch-size "$CALIBRATION_BATCH_SIZE"); fi
+if [[ -n "${CALIBRATION_BACKEND:-}" ]]; then args+=(--calibration-backend "$CALIBRATION_BACKEND"); fi
+if [[ -n "${HIDDEN_CACHE:-}" ]]; then args+=(--hidden-cache "$HIDDEN_CACHE"); fi
+if [[ "${LENGTH_BUCKETING:-1}" == 0 ]]; then args+=(--no-length-bucketing); fi
+if [[ -n "${SVD_METHOD:-}" ]]; then args+=(--svd-method "$SVD_METHOD"); fi
+if [[ -n "${SVD_OVERSAMPLE:-}" ]]; then args+=(--svd-oversample "$SVD_OVERSAMPLE"); fi
+if [[ -n "${SVD_NITER:-}" ]]; then args+=(--svd-niter "$SVD_NITER"); fi
+if [[ -n "${SVD_SEED:-}" ]]; then args+=(--svd-seed "$SVD_SEED"); fi
+if [[ -n "${REFINE_ROW_CHUNK:-}" ]]; then args+=(--refine-row-chunk "$REFINE_ROW_CHUNK"); fi
 if [[ -n "${REFINE_SWEEPS:-}" ]]; then args+=(--refine-sweeps "$REFINE_SWEEPS"); fi
 if [[ -n "${REFINE_BLOCK:-}" ]]; then args+=(--refine-block "$REFINE_BLOCK"); fi
 if [[ "${REFINE_ALL_BITS:-0}" == 1 ]]; then args+=(--refine-all-bits); fi
+if [[ "${PROFILE:-0}" == 1 ]]; then args+=(--profile); fi
 
 exec "$PYTHON" scripts/QJL/run_activation_bundle.py "${args[@]}" "$@"

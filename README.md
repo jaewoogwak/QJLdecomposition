@@ -496,6 +496,91 @@ The Qwen BF16 snapshot was downloaded to the default server model path, and
 the default 512/128 WikiText-103 JSONL inputs were prepared. Neither the
 model weights nor generated JSONL files are versioned.
 
+### Layer-wise calibration and performance options
+
+The optimized collector passes cached hidden states through one decoder layer
+at a time and accumulates uncentered Gate/Up and Down covariance on GPU in
+FP32. Each layer's covariance is transferred to CPU once, normalized, and
+atomically saved. The original `StreamingRoutedMoments` implementation remains
+available as `CALIBRATION_BACKEND=reference`. The default is `layerwise`,
+calibration batch size 8 with token-length bucketing, and automatic GPU/CPU/disk
+hidden-state placement. `HIDDEN_CACHE=disk` saves hidden-state shards for direct
+layer resume; GPU/CPU modes replay completed layers after interruption without
+recomputing their covariance. The shared `CACHE_DIR` default is
+`results/activation_bundle/shared_cache`, independent of group size, rank and
+output directory. Its manifest checks the local model revision and weight
+shards, dataset hashes, sample counts, maximum length, batch construction and
+layer coverage before reuse. Existing manifested covariance shards remain
+readable; unmanifested shards are rejected.
+
+The default SVD method remains `exact` for accuracy and a full singular
+spectrum. `SVD_METHOD=randomized` is an explicit truncated approximation with
+configurable oversampling, power iterations and seed. Its spectrum records are
+labeled as estimates and normalized by the **full** residual Frobenius energy.
+Gate/Up share covariance roots, `CG` and projected energy; refinement reuses
+the group's Gram geometry across ranks. `REFINE_ROW_CHUNK=0` uses all rows;
+256 is the default. `REFINE_BLOCK` defaults to 32 and also accepts 64 or 128.
+
+```bash
+# Optimized A–E sweep at rank 256. This is approximate SVD by explicit choice.
+OUTPUT_DIR=results/activation_bundle/optimized_k2_r256 \
+CACHE_DIR=results/activation_bundle/shared_cache_v2 \
+RANK=256 CASES=A,B,C,D,E \
+CALIBRATION_BACKEND=layerwise CALIBRATION_BATCH_SIZE=8 \
+SVD_METHOD=randomized SVD_OVERSAMPLE=16 SVD_NITER=2 \
+REFINE_ROW_CHUNK=256 REFINE_BLOCK=32 RESUME=1 \
+bash scripts/QJL/run_activation_bundle_sweep.sh
+
+# Calibration only, with disk hidden states for direct layer resume.
+MODE=calibrate CACHE_DIR=results/activation_bundle/shared_cache_v2 \
+HIDDEN_CACHE=disk RESUME=1 bash scripts/QJL/run_activation_bundle_sweep.sh
+
+# Reference collector comparison. Keep its cache separate.
+MODE=calibrate CALIBRATION_BACKEND=reference \
+CACHE_DIR=results/activation_bundle/reference_cache \
+CALIBRATION_BATCH_SIZE=8 RESUME=1 \
+bash scripts/QJL/run_activation_bundle_sweep.sh
+
+# Compression only, using an already completed compatible covariance cache.
+MODE=compress CACHE_DIR=results/activation_bundle/shared_cache_v2 \
+OUTPUT_DIR=results/activation_bundle/optimized_k2_r256 \
+RANK=256 SVD_METHOD=randomized RESUME=1 \
+bash scripts/QJL/run_activation_bundle_sweep.sh
+
+# Evaluation only; request signature is checked before a resumed result is reused.
+.venv/bin/python scripts/QJL/run_activation_bundle.py \
+  --mode eval --case D --rank 256 --resume \
+  --checkpoint-dir results/activation_bundle/optimized_k2_r256/checkpoint \
+  --output-dir results/activation_bundle/optimized_k2_r256 \
+  --model-path /home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat \
+  --backend triton --task arc_easy,arc_challenge,hellaswag,winogrande \
+  --eval-batch-size 16 --eval-limit 0
+
+# Synthetic-only timing comparison. PROFILE=1 on the main CLI adds CUDA syncs.
+.venv/bin/python scripts/QJL/benchmark_activation_bundle.py \
+  --device cuda --output-dir results/activation_bundle/benchmark
+```
+
+`PROFILE=1` records stage times with synchronization, peak CPU RSS, peak GPU
+allocation, checkpoint I/O and cache bytes in `stage_profile.json`. Normal
+runs avoid profiling synchronization. Inference still uses packed QJL Triton,
+fused Gate/Up and BF16 low-rank factors; the evaluation wrapper does not force
+full logits to FP32.
+
+On the server's **tiny synthetic CUDA benchmark**, layer-wise calibration took
+0.304 s versus 0.613 s for the reference collector, with identical routed
+counts and a maximum covariance difference of `2.38e-7`. A 192×256 rank-48
+activation-aware SVD took 0.005 s randomized versus 0.014 s exact; actual
+activation relative errors were 0.00707 and 0.00702. Refinement took 0.004 s
+optimized versus 0.019 s for the original block loop, with 100% bit agreement
+and identical final loss. These timings describe only the benchmark shapes;
+they do not predict full Qwen runtime. Full Qwen calibration, compression,
+sweep and lm-eval were not run for this optimization task.
+The optimized calibration and bundle tests passed 19/19 before the final cache
+fingerprint change. The full suite was stopped at the user's request after
+94 passes and one smoke-test fixture failure; the fixture was updated to
+provide verifiable JSONL inputs, but the suite was not rerun.
+
 ## Tests and attribution
 
 ```bash

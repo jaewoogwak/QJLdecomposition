@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 import os
+import resource
 import sys
 import time
 from pathlib import Path
@@ -28,6 +29,8 @@ from rescode.merging.eval_summary import report_eval_summary
 from rescode.qjl.activation_bundle_model import (CASES, FORMAT, checkpoint_sizes,
                                                  compress_layer, load_checkpoint)
 from rescode.qjl.base_bundle_analysis import StreamingRoutedMoments
+from rescode.qjl.activation_calibration import (FORMAT as CALIBRATION_FORMAT,
+                                                collect_layerwise, token_batches)
 from run_base_bundling import load_model, original_storage, save_csv, save_torch
 
 DEFAULT_TASKS = "arc_easy,arc_challenge,hellaswag,winogrande"
@@ -45,7 +48,10 @@ def arguments(argv=None):
     p.add_argument("--heldout-jsonl", type=Path)
     p.add_argument("--calibration-size", type=int, default=512)
     p.add_argument("--heldout-size", type=int, default=128)
-    p.add_argument("--calibration-batch-size", type=int, default=1)
+    p.add_argument("--calibration-batch-size", type=int, default=8)
+    p.add_argument("--calibration-backend", choices=("reference", "layerwise"), default="layerwise")
+    p.add_argument("--hidden-cache", choices=("auto", "gpu", "cpu", "disk"), default="auto")
+    p.add_argument("--length-bucketing", action=argparse.BooleanOptionalAction, default=True)
     p.add_argument("--max-length", type=int, default=512)
     p.add_argument("--layers", default="all")
     p.add_argument("--case", choices=("original",) + CASES)
@@ -60,10 +66,16 @@ def arguments(argv=None):
     p.add_argument("--bundle-seed", type=int, default=0)
     p.add_argument("--ridge", type=float, default=1e-4)
     p.add_argument("--svd-method", choices=("exact", "randomized"), default="exact")
+    p.add_argument("--svd-oversample", type=int, default=16)
+    p.add_argument("--svd-niter", type=int, default=2)
+    p.add_argument("--svd-seed", type=int, default=0)
     p.add_argument("--refine-sweeps", type=int, default=1)
     p.add_argument("--refine-block", type=int, default=32)
     p.add_argument("--refine-all-bits", action="store_true")
     p.add_argument("--row-chunk", type=int, default=64)
+    p.add_argument("--refine-row-chunk", type=int, default=256,
+                   help="0 processes all rows together")
+    p.add_argument("--profile", action="store_true")
     p.add_argument("--backend", choices=("triton", "reference"), default="triton")
     p.add_argument("--task", default=DEFAULT_TASKS)
     p.add_argument("--eval-limit", type=int, default=0)
@@ -90,13 +102,14 @@ def arguments(argv=None):
         args.rank = max(args.ranks)
     if (args.group_size < 2 or 60 % args.group_size or args.qjl_d_factor <= 0 or
             any(rank < 0 for rank in args.ranks) or args.rank < 0 or args.ridge <= 0 or
-            args.row_chunk < 1 or args.refine_block < 1 or
+            args.row_chunk < 1 or args.refine_row_chunk < 0 or args.refine_block < 1 or
+            args.svd_oversample < 0 or args.svd_niter < 0 or args.calibration_batch_size < 1 or
             args.refine_sweeps < 0 or args.calibration_size < 1 or args.heldout_size < 1 or
             args.eval_batch_size < 1 or args.eval_limit < 0):
         p.error("invalid dimension, group, rank, calibration, refinement, or evaluation option")
     args.output_dir = args.output_dir.resolve()
     args.checkpoint_dir = (args.checkpoint_dir or args.output_dir / "checkpoint").resolve()
-    args.cache_dir = (args.cache_dir or args.output_dir / "cache").resolve()
+    args.cache_dir = (args.cache_dir or Path("results/activation_bundle/shared_cache")).resolve()
     return args
 
 
@@ -160,6 +173,82 @@ def prepare_default_texts(args):
                                          "heldout_size": args.heldout_size})
 
 
+def _sha256(path: Path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _model_identity(path: Path):
+    """Identify the local model revision without hashing tens of GB of weights."""
+    identity = {name: (_sha256(path / name) if (path / name).is_file() else None)
+                for name in ("config.json", "model.safetensors.index.json")}
+    metadata = path / ".cache/huggingface/download"
+    config_metadata = metadata / "config.json.metadata"
+    identity["hub_revision"] = (config_metadata.read_text().splitlines()[0]
+                                if config_metadata.is_file() else None)
+    identity["weight_shards"] = [
+        {"name": shard.name, "bytes": shard.stat().st_size,
+         "etag": ((metadata / (shard.name + ".metadata")).read_text().splitlines()[1]
+                  if (metadata / (shard.name + ".metadata")).is_file() else None)}
+        for shard in sorted(path.glob("*.safetensors"))]
+    return identity
+
+
+def _cache_source(args, layers):
+    return {"format": CALIBRATION_FORMAT,
+            "model_path": str(args.model_path.resolve()),
+            "model_identity": _model_identity(args.model_path),
+            "layers": layers, "calibration_size": args.calibration_size,
+            "heldout_size": args.heldout_size, "max_length": args.max_length,
+            "calibration_batch_size": args.calibration_batch_size,
+            "length_bucketing": args.length_bucketing,
+            "calibration_jsonl": (str(args.calibration_jsonl.resolve())
+                                  if args.calibration_jsonl else None),
+            "heldout_jsonl": (str(args.heldout_jsonl.resolve())
+                              if args.heldout_jsonl else None),
+            "calibration_sha256": (_sha256(args.calibration_jsonl)
+                                   if args.calibration_jsonl else None),
+            "heldout_sha256": (_sha256(args.heldout_jsonl)
+                               if args.heldout_jsonl else None)}
+
+
+def cache_complete(args, layers):
+    """Validate cache identity before trusting any covariance shard."""
+    manifest = args.cache_dir / "calibration_manifest.json"
+    shards = [args.cache_dir / f"{split}_layer_{layer}.pt"
+              for split in ("calibration", "heldout") for layer in layers]
+    if not manifest.is_file():
+        if any(path.exists() for path in shards):
+            raise ValueError("unmanifested covariance cache; use another CACHE_DIR")
+        return False
+    old = json.loads(manifest.read_text())
+    wanted = _cache_source(args, layers)
+    keys = ["model_path", "calibration_size", "heldout_size", "max_length"]
+    if old.get("format") == CALIBRATION_FORMAT:
+        keys += ["calibration_batch_size", "length_bucketing"]
+    for key in keys:
+        if old.get(key) != wanted[key]:
+            raise ValueError(f"covariance cache {key} differs; use another CACHE_DIR")
+    if not set(layers).issubset(old.get("layers", [])):
+        raise ValueError("covariance cache does not cover requested layers")
+    if old.get("format") == CALIBRATION_FORMAT:
+        if old.get("model_identity") != wanted["model_identity"]:
+            raise ValueError("model revision differs from covariance cache")
+    elif old.get("format") is not None:
+        raise ValueError(f"unknown covariance cache format: {old['format']}")
+    # Version-1 manifests lack a revision hash, but their source path and
+    # dataset fingerprints remain valid and their layer payloads are readable.
+    for split in ("calibration", "heldout"):
+        source = getattr(args, f"{split}_jsonl", None)
+        if source is None and old.get(f"{split}_jsonl"):
+            source = Path(old[f"{split}_jsonl"])
+        if source is None or not source.is_file():
+            raise ValueError(f"{split} dataset cannot be verified from covariance cache")
+        fingerprint = _sha256(source)
+        if old.get(f"{split}_sha256") != fingerprint:
+            raise ValueError(f"{split} dataset differs from covariance cache")
+    return all(path.is_file() for path in shards)
+
+
 def calibrate(args, model, tokenizer, layers):
     if tokenizer.pad_token_id is None:
         tokenizer.pad_token = tokenizer.eos_token
@@ -170,42 +259,74 @@ def calibrate(args, model, tokenizer, layers):
     if fingerprints[0] & fingerprints[1]:
         raise ValueError("calibration and held-out text overlap")
     args.cache_dir.mkdir(parents=True, exist_ok=True)
-    source = {"model_path": str(args.model_path.resolve()), "layers": layers,
-              "calibration_jsonl": str(args.calibration_jsonl.resolve()),
-              "heldout_jsonl": str(args.heldout_jsonl.resolve()),
-              "calibration_sha256": hashlib.sha256(args.calibration_jsonl.read_bytes()).hexdigest(),
-              "heldout_sha256": hashlib.sha256(args.heldout_jsonl.read_bytes()).hexdigest(),
-              "calibration_size": args.calibration_size, "heldout_size": args.heldout_size,
-              "max_length": args.max_length}
+    source = _cache_source(args, layers)
     source_path = args.cache_dir / "calibration_manifest.json"
-    if source_path.exists() and json.loads(source_path.read_text()) != source:
-        raise ValueError("calibration cache source/config changed; use another cache directory")
+    already_complete = cache_complete(args, layers)
+    if already_complete and args.resume:
+        print("[calibrate] compatible covariance cache reused", flush=True)
+        return
+    if not source_path.exists():
+        atomic_json(source_path, source)
+    elif json.loads(source_path.read_text()).get("format") is None:
+        # Adopt a compatible version-1 cache. Its covariance payload remains
+        # unchanged; the new manifest adds the model revision hash.
+        atomic_json(source_path, source)
+    if args.calibration_backend == "layerwise":
+        batches = {"calibration": token_batches(tokenizer, calibration,
+                       args.calibration_batch_size, args.max_length, args.length_bucketing),
+                   "heldout": token_batches(tokenizer, heldout,
+                       args.calibration_batch_size, args.max_length, args.length_bucketing)}
+        profiles, storage = collect_layerwise(model.model, batches, layers, args.cache_dir,
+             hidden_cache=args.hidden_cache, resume=args.resume, profile=args.profile)
+        atomic_json(args.cache_dir / "calibration_profile.json",
+                    {"backend": "layerwise", "hidden_cache": storage,
+                     "layers": profiles,
+                     "cpu_peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+                     "cache_bytes": sum(
+                         path.stat().st_size for path in args.cache_dir.rglob("*") if path.is_file())})
+        return
+    reference_profile = []
     for split, texts in (("calibration", calibration), ("heldout", heldout)):
         paths = [args.cache_dir / f"{split}_layer_{layer}.pt" for layer in layers]
         if args.resume and all(path.exists() for path in paths):
             print(f"[calibrate] {split}: resumed", flush=True)
             continue
-        collector = StreamingRoutedMoments(model, layers, probe_limit=0)
+        collector = StreamingRoutedMoments(model, layers, probe_limit=0, profile=args.profile)
+        forward_seconds = 0.
+        batches = token_batches(tokenizer, texts, args.calibration_batch_size,
+                                args.max_length, args.length_bucketing)
         try:
             with torch.no_grad():
-                for start in range(0, len(texts), args.calibration_batch_size):
-                    batch = tokenizer(texts[start:start + args.calibration_batch_size],
-                                      padding=True, truncation=True, max_length=args.max_length,
-                                      return_tensors="pt")
+                for batch_number, batch in enumerate(batches, 1):
                     collector.begin_batch(batch["attention_mask"])
                     device = next(model.parameters()).device
+                    if args.profile and device.type == "cuda":
+                        torch.cuda.synchronize(device)
+                    started = time.perf_counter()
                     # Routed hooks live in the backbone. Avoid constructing
                     # the unused full-vocabulary LM logits during calibration.
-                    model.model(**{k: v.to(device) for k, v in batch.items()}, use_cache=False)
-                    print(f"[calibrate] {split}: {min(start + args.calibration_batch_size, len(texts))}/{len(texts)}", flush=True)
+                    model.model(input_ids=batch["input_ids"].to(device),
+                                attention_mask=batch["attention_mask"].to(device), use_cache=False)
+                    if args.profile and device.type == "cuda":
+                        torch.cuda.synchronize(device)
+                    forward_seconds += time.perf_counter() - started
+                    print(f"[calibrate] {split}: {batch_number}/{len(batches)} batches", flush=True)
             snapshot = collector.snapshot()
+            checkpoint_started = time.perf_counter()
             for layer in layers:
                 save_torch(args.cache_dir / f"{split}_layer_{layer}.pt", snapshot[layer])
+            reference_profile.append({"split": split, "forward_seconds": forward_seconds,
+                **collector.profile, "checkpoint_io_seconds": time.perf_counter() - checkpoint_started})
         finally:
             collector.close()
             del collector
             gc.collect()
     atomic_json(source_path, source)
+    atomic_json(args.cache_dir / "calibration_profile.json",
+                {"backend": "reference", "splits": reference_profile,
+                 "cpu_peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+                 "cache_bytes": sum(path.stat().st_size for path in args.cache_dir.rglob("*")
+                                    if path.is_file())})
 
 
 def _config(args, layers):
@@ -218,8 +339,11 @@ def _config(args, layers):
             "group_size": args.group_size, "pairing": args.pairing,
             "projection_seed": args.projection_seed, "pairing_seed": args.pairing_seed,
             "bundle_seed": args.bundle_seed, "ridge": args.ridge,
-            "svd_method": args.svd_method, "refine_sweeps": args.refine_sweeps,
-            "refine_block": args.refine_block, "conflict_only": not args.refine_all_bits,
+            "svd_method": args.svd_method, "svd_oversample": args.svd_oversample,
+            "svd_niter": args.svd_niter, "svd_seed": args.svd_seed,
+            "refine_sweeps": args.refine_sweeps, "refine_block": args.refine_block,
+            "refine_row_chunk": args.refine_row_chunk,
+            "conflict_only": not args.refine_all_bits,
             "row_chunk": args.row_chunk, "cases": [c for c in args.cases if c != "original"]}
 
 
@@ -237,6 +361,8 @@ def _layer_paths(root, layer, config):
 
 
 def compress(args, model, layers):
+    if not cache_complete(args, layers):
+        raise FileNotFoundError("compatible calibration and held-out covariance shards are required")
     root = args.checkpoint_dir
     root.mkdir(parents=True, exist_ok=True)
     config = _config(args, layers)
@@ -268,8 +394,11 @@ def compress(args, model, layers):
         if torch.cuda.is_available():
             torch.cuda.reset_peak_memory_stats()
         started = time.perf_counter()
+        stage_profile = {} if args.profile else None
         base, factors, refined, records, spectra = compress_layer(model.model.layers[layer].mlp,
-                                                         layer, calibration, config, banks, heldout)
+                                            layer, calibration, config, banks, heldout,
+                                            profile=stage_profile)
+        checkpoint_started = time.perf_counter()
         for case, state in base.items():
             save_torch(root / f"base_{case}_layer_{layer}.pt", state)
         if "E" in config["cases"]:
@@ -293,8 +422,13 @@ def compress(args, model, layers):
         save_csv(root / f"per_expert_layer_{layer}.csv",
                  [{key: row.get(key) for key in fields} for row in records])
         np.savez_compressed(root / f"spectrum_layer_{layer}.npz", **spectra)
+        checkpoint_seconds = time.perf_counter() - checkpoint_started
         atomic_json(root / f"compression_layer_{layer}.json", {
             "layer": layer, "wall_seconds": time.perf_counter() - started,
+            "profile_enabled": args.profile, "stages": stage_profile or {},
+            "checkpoint_io_seconds": checkpoint_seconds,
+            "cpu_peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
+            "covariance_cache_bytes": cal_path.stat().st_size + held_path.stat().st_size,
             "gpu_peak_allocated_bytes": [torch.cuda.max_memory_allocated(i)
                                          for i in range(torch.cuda.device_count())]})
         block = model.model.layers[layer].mlp
@@ -331,6 +465,35 @@ def _resident(model):
                                        sum(factors.values()) + projection}
 
 
+def evaluation_signature(args, case, rank):
+    manifest = args.checkpoint_dir / "manifest.json"
+    return {"case": case, "rank": rank if case in ("C", "D", "E") else 0,
+            "task": args.task, "eval_limit": args.eval_limit,
+            "eval_batch_size": args.eval_batch_size, "backend": args.backend,
+            "model_path": str(args.model_path.resolve()),
+            "model_identity": _model_identity(args.model_path),
+            "checkpoint_dir": (str(args.checkpoint_dir) if case != "original" else None),
+            "checkpoint_manifest_sha256": (_sha256(manifest) if case != "original" and
+                                            manifest.exists() else None)}
+
+
+def eval_result_path(args, case, rank):
+    return (args.output_dir / case /
+            (f"rank_{rank}" if case in ("C", "D", "E") else "") /
+            "eval_metrics.json")
+
+
+def completed_eval_matches(args, case, rank):
+    path = eval_result_path(args, case, rank)
+    if not path.exists():
+        return False
+    existing = json.loads(path.read_text())
+    wanted = evaluation_signature(args, case, rank)
+    if existing.get("request_signature") != wanted:
+        raise ValueError(f"saved evaluation settings differ: {path}; use another OUTPUT_DIR")
+    return True
+
+
 def evaluate(args, model, tokenizer, layers):
     case = args.case
     rank = args.rank
@@ -364,6 +527,7 @@ def evaluate(args, model, tokenizer, layers):
                                   header=f"Activation bundle {case}")
     runtime = _resident(model) if config else {}
     metrics = {"case": case, "rank": rank if case in ("C", "D", "E") else 0,
+               "request_signature": evaluation_signature(args, case, rank),
                "task": args.task, "eval_limit": args.eval_limit,
                "eval_batch_size": args.eval_batch_size, "backend": args.backend,
                "evaluation_wall_seconds": elapsed, "task_summary": summary,
@@ -419,6 +583,10 @@ def report(args):
                                  for path in spectrum_paths))
             spectra = {}
             if refresh_plots:
+                source_energies = {row["spectrum_file"].split(":", 1)[-1]:
+                                   float(row["spectrum_source_energy"])
+                                   for row in all_rows if row.get("spectrum_file") and
+                                   row.get("spectrum_source_energy") not in (None, "")}
                 for path in spectrum_paths:
                     if not path.exists():
                         continue
@@ -430,7 +598,8 @@ def report(args):
                             if case in ("C", "D", "E"):
                                 values = data[name].astype(np.float64)
                                 energy = values ** 2
-                                spectra.setdefault(case, []).append(energy / max(energy.sum(), 1e-30))
+                                denominator = source_energies.get(name, energy.sum())
+                                spectra.setdefault(case, []).append(energy / max(denominator, 1e-30))
             if spectra:
                 import matplotlib
                 matplotlib.use("Agg")
@@ -447,7 +616,10 @@ def report(args):
                     if not cumulative:
                         ax.set_yscale("log")
                     ax.set_xlabel("Rank")
-                    ax.set_ylabel("Cumulative energy" if cumulative else "Normalized singular energy")
+                    ax.set_ylabel("Fraction of full residual energy" if cumulative
+                                  else "Singular energy / full residual energy")
+                    if config["svd_method"] == "randomized":
+                        ax.set_title("Randomized truncated spectrum estimate")
                     ax.legend()
                     fig.tight_layout()
                     fig.savefig(plot_dir / filename, dpi=160)
@@ -484,15 +656,44 @@ def report(args):
     if config:
         total_seconds = 0.
         peaks = []
+        cpu_peaks = []
+        cache_bytes = 0
+        stage_totals = {}
         for layer in config["layers"]:
             path = args.checkpoint_dir / f"compression_layer_{layer}.json"
             if path.exists():
                 item = json.loads(path.read_text())
                 total_seconds += item["wall_seconds"]
                 peaks.extend(item["gpu_peak_allocated_bytes"])
+                cpu_peaks.append(item.get("cpu_peak_rss_bytes", 0))
+                cache_bytes += item.get("covariance_cache_bytes", 0)
+                stage_totals["checkpoint_io_seconds"] = (
+                    stage_totals.get("checkpoint_io_seconds", 0.) +
+                    item.get("checkpoint_io_seconds", 0.))
+                for name, seconds in item.get("stages", {}).items():
+                    stage_totals[name] = stage_totals.get(name, 0.) + seconds
+        calibration_profile_path = args.cache_dir / "calibration_profile.json"
+        calibration_profile = (json.loads(calibration_profile_path.read_text())
+                               if calibration_profile_path.exists() else None)
+        atomic_json(out / "stage_profile.json", {"calibration": calibration_profile,
+                    "compression_stage_seconds": stage_totals,
+                    "compression_wall_seconds": total_seconds,
+                    "compression_peak_gpu_bytes": max(peaks, default=0),
+                    "compression_peak_cpu_rss_bytes": max(cpu_peaks, default=0),
+                    "selected_covariance_cache_bytes": cache_bytes})
         if total_seconds:
             lines += [f"Compression time across completed layers: {total_seconds:.1f} s.",
-                      f"Peak GPU allocation during compression: {max(peaks, default=0)} bytes.", ""]
+                      f"Peak GPU allocation during compression: {max(peaks, default=0)} bytes.",
+                      f"Peak CPU RSS during compression: {max(cpu_peaks, default=0)} bytes.",
+                      f"Selected covariance cache bytes: {cache_bytes}.", ""]
+        if calibration_profile:
+            lines += [f"Calibration backend: {calibration_profile['backend']}.",
+                      f"Calibration cache bytes: {calibration_profile.get('cache_bytes', 0)}.", ""]
+        if stage_totals:
+            lines += ["| Compression stage | Seconds |", "|---|---:|"]
+            lines += [f"| {name} | {seconds:.3f} |"
+                      for name, seconds in sorted(stage_totals.items())]
+            lines += [""]
     if summary_rows:
         lines += ["| Case | Mean accuracy | Mean acc_norm | Checkpoint bytes | BPW |",
                   "|---|---:|---:|---:|---:|"]
@@ -518,18 +719,15 @@ def main(argv=None):
         report(args)
         return
     if args.mode == "sweep":
-        cache_ready = all((args.cache_dir / f"{split}_layer_{layer}.pt").exists()
-                          for split in ("calibration", "heldout")
-                          for layer in select(args.layers, 24))
-        if args.calibration_jsonl is None and not cache_ready:
-            prepare_default_texts(args)
         cache_manifest = args.cache_dir / "calibration_manifest.json"
-        if args.calibration_jsonl is not None and cache_manifest.exists():
+        if args.calibration_jsonl is None and cache_manifest.exists():
             cached = json.loads(cache_manifest.read_text())
-            for label, path in (("calibration", args.calibration_jsonl),
-                                ("heldout", args.heldout_jsonl)):
-                if hashlib.sha256(path.read_bytes()).hexdigest() != cached[f"{label}_sha256"]:
-                    raise ValueError(f"{label} JSONL differs from the covariance cache")
+            paths = [Path(cached[f"{split}_jsonl"]) for split in ("calibration", "heldout")]
+            if all(path.is_file() for path in paths):
+                args.calibration_jsonl, args.heldout_jsonl = paths
+        if args.calibration_jsonl is None and not cache_manifest.exists():
+            prepare_default_texts(args)
+        cache_ready = cache_complete(args, select(args.layers, 24))
         # Separate processes release all GPU allocations between cases.
         import subprocess
         common = [sys.executable, str(Path(__file__).resolve()), "--model-path", str(args.model_path),
@@ -539,11 +737,21 @@ def main(argv=None):
                   "--pairing", args.pairing, "--ranks", ",".join(map(str, args.ranks)),
                   "--projection-seed", str(args.projection_seed), "--pairing-seed", str(args.pairing_seed),
                   "--bundle-seed", str(args.bundle_seed), "--ridge", str(args.ridge),
-                  "--svd-method", args.svd_method, "--row-chunk", str(args.row_chunk),
+                  "--svd-method", args.svd_method,
+                  "--svd-oversample", str(args.svd_oversample),
+                  "--svd-niter", str(args.svd_niter), "--svd-seed", str(args.svd_seed),
+                  "--row-chunk", str(args.row_chunk),
+                  "--refine-row-chunk", str(args.refine_row_chunk),
                   "--refine-sweeps", str(args.refine_sweeps), "--refine-block", str(args.refine_block),
                   "--task", args.task, "--eval-limit", str(args.eval_limit),
                   "--eval-batch-size", str(args.eval_batch_size), "--backend", args.backend,
-                  "--cases", ",".join(args.cases)]
+                  "--cases", ",".join(args.cases),
+                  "--calibration-backend", args.calibration_backend,
+                  "--hidden-cache", args.hidden_cache]
+        if not args.length_bucketing:
+            common.append("--no-length-bucketing")
+        if args.profile:
+            common.append("--profile")
         if args.calibration_jsonl is not None:
             common += ["--calibration-jsonl", str(args.calibration_jsonl)]
         if args.heldout_jsonl is not None:
@@ -565,16 +773,35 @@ def main(argv=None):
             for case in args.cases:
                 ranks = args.ranks if case in ("C", "D", "E") else [0]
                 for rank in ranks:
-                    result_path = (args.output_dir / case /
-                                   (f"rank_{rank}" if rank else "") / "eval_metrics.json")
-                    if args.resume and result_path.exists():
+                    if args.resume and completed_eval_matches(args, case, rank):
                         continue
                     subprocess.run(common + ["--mode", "eval", "--case", case,
                                              "--rank", str(rank)], check=True)
         subprocess.run(common + ["--mode", "report"], check=True)
         return
     if args.mode == "calibrate":
-        prepare_default_texts(args)
+        cache_manifest = args.cache_dir / "calibration_manifest.json"
+        if args.calibration_jsonl is None and cache_manifest.exists():
+            cached = json.loads(cache_manifest.read_text())
+            paths = [Path(cached[f"{split}_jsonl"]) for split in ("calibration", "heldout")]
+            if all(path.is_file() for path in paths):
+                args.calibration_jsonl, args.heldout_jsonl = paths
+        if args.calibration_jsonl is None:
+            prepare_default_texts(args)
+        if args.resume and cache_complete(args, select(args.layers, 24)):
+            print("[calibrate] compatible covariance cache reused", flush=True)
+            return
+    if args.mode == "eval" and args.resume:
+        rank = args.rank
+        if args.case in ("C", "D", "E") and not args.explicit_rank:
+            rank = max(json.loads((args.checkpoint_dir / "manifest.json").read_text())["ranks"])
+        if completed_eval_matches(args, args.case, rank):
+            print(f"[eval] compatible result reused: {eval_result_path(args, args.case, rank)}",
+                  flush=True)
+            return
+    if args.mode == "compress":
+        if not cache_complete(args, select(args.layers, 24)):
+            raise FileNotFoundError("compatible calibration and held-out covariance shards are required")
     model, tokenizer = load_model(args.model_path, args.gpu_memory_fraction)
     layers = select(args.layers, len(model.model.layers))
     if args.mode == "calibrate":

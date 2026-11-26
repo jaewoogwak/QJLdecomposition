@@ -21,6 +21,7 @@ from rescode.qjl.core import pack_signs, unpack_signs
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts/QJL"))
 import run_activation_bundle as runner
+from benchmark_activation_bundle import refine_reference
 
 
 class TinyExpert(nn.Module):
@@ -163,6 +164,29 @@ def test_covariance_svd_and_refinement():
     assert refined.shape == signs.shape
 
 
+def test_randomized_svd_is_seeded_and_uses_full_energy():
+    torch.manual_seed(52)
+    residual = torch.randn(48, 64)
+    residual += torch.randn(48, 4) @ torch.randn(4, 64)
+    covariance = torch.randn(64, 64)
+    covariance = covariance.T @ covariance / 64 + torch.eye(64)
+    roots = regularized_roots(covariance, 1e-4)
+    exact_u, exact_v, _, exact_energy = svd_factors(residual, 8, covariance,
+                                                     roots=roots, method="exact")
+    random_a = svd_factors(residual, 8, covariance, roots=roots, method="randomized",
+                           oversample=8, niter=2, seed=113)
+    random_b = svd_factors(residual, 8, covariance, roots=roots, method="randomized",
+                           oversample=8, niter=2, seed=113)
+    assert torch.equal(random_a[0], random_b[0])
+    assert torch.equal(random_a[1], random_b[1])
+    assert 0 < random_a[3] <= exact_energy + 1e-4 <= 1.0001
+    assert random_a[2].numel() <= 16 < min(residual.shape)
+    target = residual @ roots[0]
+    exact_error = ((residual - exact_u.float() @ exact_v.float()) @ roots[0]).norm() / target.norm()
+    random_error = ((residual - random_a[0].float() @ random_a[1].float()) @ roots[0]).norm() / target.norm()
+    assert random_error <= exact_error + .03
+
+
 def test_conflict_only_preserves_unanimous_bits():
     torch.manual_seed(99)
     w = torch.randn(4, 5)
@@ -174,6 +198,30 @@ def test_conflict_only_preserves_unanimous_bits():
                                   block_size=4, row_chunk=2, conflict_only=True)
     assert torch.equal(refined, signs)
     assert stats["accepted_flips"] == 0
+
+
+def test_optimized_refinement_matches_reference_blocks():
+    torch.manual_seed(92)
+    rows, cols, d = 9, 8, 16
+    g = torch.randn(cols, d).half()
+    weights = [torch.randn(rows, cols) for _ in range(2)]
+    covariances = []
+    for _ in range(2):
+        matrix = torch.randn(cols, cols)
+        covariances.append(matrix.T @ matrix / cols + torch.eye(cols))
+    scales = [torch.rand(rows) for _ in range(2)]
+    factors = [(torch.zeros(rows, 0), torch.zeros(0, cols)) for _ in range(2)]
+    signs = torch.rand(rows, d) > .5
+    for block_size in (4, 16, 64, 128):
+        options = {"sweeps": 2, "block_size": block_size,
+                   "row_chunk": 0, "conflict_only": False}
+        old, old_stats = refine_reference(signs, weights, covariances, scales,
+                                          factors, g, **options)
+        new, new_stats = refine_group(signs, weights, covariances, scales,
+                                      factors, g, **options)
+        assert torch.equal(new, old)
+        assert new_stats["accepted_flips"] == old_stats["accepted_flips"]
+        assert new_stats["loss_after"] <= new_stats["loss_before"] + 1e-6
 
 
 def test_multi_rank_reuses_group_map_and_base():
@@ -209,6 +257,22 @@ def test_all_group_sizes_store_one_sketch_per_group():
         for case in ("A", "B"):
             for part in bases[case]["projections"].values():
                 assert len(part["groups"]) == len(part["sketches"]) == 12 // k
+
+
+def test_gate_up_covariance_geometry_is_reused(monkeypatch):
+    import rescode.qjl.activation_bundle_model as optimized
+    original = optimized.regularized_roots
+    calls = []
+    def counted(covariance, ridge):
+        calls.append(covariance.shape)
+        return original(covariance, ridge)
+    monkeypatch.setattr(optimized, "regularized_roots", counted)
+    cfg = config(("A", "B", "D"))
+    compress_layer(TinyModel().model.layers[0].mlp, 0, calibration(), cfg, {})
+    # Six gate/up covariances are shared; the six Down covariances differ.
+    assert len(calls) == 12
+    assert calls.count(torch.Size([8, 8])) == 6
+    assert calls.count(torch.Size([6, 6])) == 6
 
 
 @pytest.fixture(scope="module")
@@ -287,10 +351,18 @@ def test_compress_reload_eval_report_smoke(tmp_path, monkeypatch):
     cal = calibration()
     torch.save(cal, cache / "calibration_layer_0.pt")
     torch.save(cal, cache / "heldout_layer_0.pt")
+    calibration_jsonl = tmp_path / "calibration.jsonl"
+    heldout_jsonl = tmp_path / "heldout.jsonl"
+    calibration_jsonl.write_text('{"text":"calibration"}\n')
+    heldout_jsonl.write_text('{"text":"heldout"}\n')
     common = ["--model-path", str(tmp_path / "model"), "--output-dir", str(out),
+              "--cache-dir", str(cache),
+              "--calibration-jsonl", str(calibration_jsonl),
+              "--heldout-jsonl", str(heldout_jsonl),
               "--layers", "0", "--group-size", "2", "--rank", "2",
               "--cases", "A,B,C,D,E", "--backend", "reference"]
     args = runner.arguments(["--mode", "compress", *common])
+    runner.atomic_json(cache / "calibration_manifest.json", runner._cache_source(args, [0]))
     runner.compress(args, TinyModel(), [0])
     assert (out / "checkpoint" / "spectrum_layer_0.npz").exists()
     assert (out / "analysis_summary.json").exists()
@@ -303,6 +375,11 @@ def test_compress_reload_eval_report_smoke(tmp_path, monkeypatch):
     runner.evaluate(eval_args, TinyModel(), None, [0])
     assert (out / "D" / "rank_2" / "eval_metrics.json").exists()
     assert (out / "summary.csv").exists()
+    assert runner.completed_eval_matches(eval_args, "D", 2)
+    changed = runner.arguments(["--mode", "eval", "--case", "D", *common,
+                                "--task", "arc_challenge"])
+    with pytest.raises(ValueError, match="saved evaluation settings differ"):
+        runner.completed_eval_matches(changed, "D", 2)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="Triton parity requires CUDA")

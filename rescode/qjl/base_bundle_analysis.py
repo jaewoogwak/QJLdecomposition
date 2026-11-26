@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 from collections import defaultdict
 
@@ -364,10 +365,12 @@ class StreamingRoutedMoments:
     are the tensors passed into the real experts; no expert forward is replayed.
     """
 
-    def __init__(self, model, layers, probe_limit=32):
+    def __init__(self, model, layers, probe_limit=32, profile=False):
         self.model = model
         self.layers = layers
         self.probe_limit = probe_limit
+        self.profile_enabled = profile
+        self.profile = {"covariance_addmm_seconds": 0., "covariance_transfer_seconds": 0.}
         self.stats = defaultdict(dict)
         self.coroute = {}
         self.mask = None
@@ -418,7 +421,19 @@ class StreamingRoutedMoments:
                                           "count": 0, "probe": []}
             stat = self.stats[layer][key]
             if x.numel():
-                stat["sum_xxt"] += (x.T @ x).double().cpu()
+                if self.profile_enabled:
+                    if x.is_cuda:
+                        torch.cuda.synchronize(x.device)
+                    started = time.perf_counter()
+                    product = x.T @ x
+                    if x.is_cuda:
+                        torch.cuda.synchronize(x.device)
+                    self.profile["covariance_addmm_seconds"] += time.perf_counter() - started
+                    started = time.perf_counter()
+                    stat["sum_xxt"] += product.double().cpu()
+                    self.profile["covariance_transfer_seconds"] += time.perf_counter() - started
+                else:
+                    stat["sum_xxt"] += (x.T @ x).double().cpu()
                 stat["count"] += len(x)
                 remaining = self.probe_limit - sum(len(p) for p in stat["probe"])
                 if remaining > 0:
