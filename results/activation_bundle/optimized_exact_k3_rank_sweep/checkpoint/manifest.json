@@ -1,0 +1,141 @@
+{
+  "format": "activation-aware-qjl-group-v1",
+  "model_path": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+  "calibration_source": {
+    "format": "activation-routed-covariance-v2",
+    "model_path": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+    "model_identity": {
+      "config.json": "b3e9fc1ad643d12f6536dee80a66c5ea045b571856165a598252720b6f2c553e",
+      "model.safetensors.index.json": "ece1b223efe32f4349d0dfa2a522249ac10bcb89369ed25b222c35175cd90b53",
+      "hub_revision": "ec052fda178e241c7c443468d2fa1db6618996be",
+      "weight_shards": [
+        {
+          "name": "model-00001-of-00008.safetensors",
+          "bytes": 3999614664,
+          "etag": "a51a84c031e0f6c8808bc284106c488ab3db6069a3f6f5a231be1e963206d020"
+        },
+        {
+          "name": "model-00002-of-00008.safetensors",
+          "bytes": 3999385424,
+          "etag": "02a9f530c526ac09e5d26cdece113d62b030ebc6f137ea69cd2754bea1287121"
+        },
+        {
+          "name": "model-00003-of-00008.safetensors",
+          "bytes": 3988628968,
+          "etag": "200116fdf90ea17c2dae53594a87b9efbbe199e4c4e487fb25aba9c65e674112"
+        },
+        {
+          "name": "model-00004-of-00008.safetensors",
+          "bytes": 3999386088,
+          "etag": "41296f5c77188a4182c87f9bc5958222897ed5fe1bde6912755df050f1222b8d"
+        },
+        {
+          "name": "model-00005-of-00008.safetensors",
+          "bytes": 3988629648,
+          "etag": "a613a2c68f18630beb1eb681627d34110cec36a615a35c4d7f35f72e0df5b2e4"
+        },
+        {
+          "name": "model-00006-of-00008.safetensors",
+          "bytes": 3999386104,
+          "etag": "44de056d0f2c4375685ec7545a987c20d59cd8ee75c1802e04a11e7dcd7a84f1"
+        },
+        {
+          "name": "model-00007-of-00008.safetensors",
+          "bytes": 3988629648,
+          "etag": "fbc95c8fc0842c425168c21e933629cde22fc156ef9b4af927ad2787fe4d33a1"
+        },
+        {
+          "name": "model-00008-of-00008.safetensors",
+          "bytes": 668484400,
+          "etag": "9a5e51c0a101292c249032382f20d912677e1c0c4b5b0c78e951450fedb820ee"
+        }
+      ]
+    },
+    "layers": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23
+    ],
+    "calibration_size": 512,
+    "heldout_size": 128,
+    "max_length": 512,
+    "calibration_batch_size": 8,
+    "length_bucketing": true,
+    "calibration_jsonl": "/home/jaewoo/QJLdecomposition/results/activation_bundle/optimized_exact_k3_r256/data/wikitext103_calibration.jsonl",
+    "heldout_jsonl": "/home/jaewoo/QJLdecomposition/results/activation_bundle/optimized_exact_k3_r256/data/wikitext103_heldout.jsonl",
+    "calibration_sha256": "d6217d531676b6961983eed1c7ef04a4ebe4865b23759123dafd3b2c9c41931f",
+    "heldout_sha256": "2833a58dbf6efe09adb570fcd7e64ef6bfa2e698c159ddf4af53bbd8fcf318eb"
+  },
+  "layers": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23
+  ],
+  "qjl_d_factor": 2.0,
+  "rank": 512,
+  "ranks": [
+    64,
+    128,
+    512
+  ],
+  "group_size": 3,
+  "pairing": "similarity",
+  "projection_seed": 0,
+  "pairing_seed": 0,
+  "bundle_seed": 0,
+  "ridge": 0.0001,
+  "svd_method": "exact",
+  "svd_oversample": 16,
+  "svd_niter": 2,
+  "svd_seed": 0,
+  "refine_sweeps": 1,
+  "refine_block": 32,
+  "refine_row_chunk": 256,
+  "conflict_only": true,
+  "row_chunk": 64,
+  "cases": [
+    "E"
+  ]
+}
