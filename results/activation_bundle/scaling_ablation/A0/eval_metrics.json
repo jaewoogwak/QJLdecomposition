@@ -1,0 +1,64 @@
+{
+  "case": "A0",
+  "rank": 0,
+  "scaling": "original_weight_row_l2",
+  "request_signature": {
+    "case": "A0",
+    "task": "arc_easy,arc_challenge",
+    "eval_limit": 0,
+    "eval_batch_size": 32,
+    "backend": "triton",
+    "model_path": "/home/jaewoo/models/Qwen1.5-MoE-A2.7B-Chat",
+    "checkpoint_manifest_sha256": "68fd7c281ee510e22851f61b5167ba58144499fdbf927cacc8763fb4b809660d"
+  },
+  "task": "arc_easy,arc_challenge",
+  "eval_limit": 0,
+  "eval_batch_size": 32,
+  "backend": "triton",
+  "evaluation_wall_seconds": 443.86785017419606,
+  "task_summary": {
+    "tasks": [
+      [
+        "arc_easy",
+        0.26430976430976433,
+        0.26346801346801346
+      ],
+      [
+        "arc_challenge",
+        0.2150170648464164,
+        0.2568259385665529
+      ]
+    ],
+    "avg": 0.23966341457809037,
+    "avg_norm_strict": 0.2601469760172832,
+    "avg_norm": 0.2601469760172832,
+    "avg_norm_uses_fallback": []
+  },
+  "task_results": {
+    "arc_challenge": {
+      "acc,none": 0.2150170648464164,
+      "acc_stderr,none": 0.012005717634133614,
+      "acc_norm,none": 0.2568259385665529,
+      "acc_norm_stderr,none": 0.012766923794116801
+    },
+    "arc_easy": {
+      "acc,none": 0.26430976430976433,
+      "acc_stderr,none": 0.009048410451863016,
+      "acc_norm,none": 0.26346801346801346,
+      "acc_norm_stderr,none": 0.009039157374497711
+    }
+  },
+  "storage": {
+    "shared_sketch_bytes": 1038090240,
+    "row_scale_bytes": 28016640,
+    "lowrank_residual_bytes": 0,
+    "actual_checkpoint_bytes": 1067774571,
+    "metadata_and_container_bytes": 1667691,
+    "routed_weight_count": 12457082880,
+    "effective_bpw": 0.6857300902857925,
+    "bf16_storage_reduction": 0.957141869357138
+  },
+  "gpu_process_peak_allocated_bytes": [
+    29098577920
+  ]
+}

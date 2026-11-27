@@ -585,6 +585,38 @@ fingerprint change. The full suite was stopped at the user's request after
 94 passes and one smoke-test fixture failure; the fixture was updated to
 provide verifiable JSONL inputs, but the suite was not rerun.
 
+### Fixed-code row scaling ablation (K=3, D=2n)
+
+`scripts/QJL/run_activation_scaling_ablation.py` compares A0/A and B0/B. A0 and
+B0 use the original BF16 weight's FP32 row L2 norm as the QJL scale. A and B
+reuse the completed `optimized_exact_k3_r256` evaluation and per-expert
+measurements, where row scales were optimized against calibration covariance.
+The script reads the A/B packed sketches and group maps from the existing
+`optimized_exact_k3_rank_sweep` checkpoint, verifies that its model, seeds,
+grouping settings and covariance source match the A/B baseline, then changes
+only the row-scale tensors. It performs no SVD or bit refinement. The deleted
+large checkpoint shards from the older K=3 rank-256 run are not needed.
+
+```bash
+# Full 24-layer preparation, A0/B0 zero-shot ARC evaluation, and comparison report.
+.venv/bin/python scripts/QJL/run_activation_scaling_ablation.py \
+  --mode all --resume
+
+# Separate stages, if needed:
+.venv/bin/python scripts/QJL/run_activation_scaling_ablation.py --mode compress --resume
+.venv/bin/python scripts/QJL/run_activation_scaling_ablation.py --mode eval --case A0 --resume
+.venv/bin/python scripts/QJL/run_activation_scaling_ablation.py --mode eval --case B0 --resume
+.venv/bin/python scripts/QJL/run_activation_scaling_ablation.py --mode report
+```
+
+Defaults are full ARC-Easy/ARC-Challenge, batch size 32 (matching the stored
+A/B baseline), Triton, and `results/activation_bundle/scaling_ablation`.
+`summary.csv`, `summary.json` and `REPORT.md` compare accuracy, acc_norm,
+weight and activation errors, checkpoint bytes and BPW. `per_expert.csv` holds
+the layer/projection/expert measurements; A0/B0 compact checkpoints and eval
+metrics are saved under the same output directory. Source checkpoints, model
+weights and the shared covariance cache are excluded from ablation BPW.
+
 ## Tests and attribution
 
 ```bash
